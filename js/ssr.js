@@ -1,3 +1,5 @@
+// @ts-check
+
 import Root from "./root.svelte"
 
 export class Renderer {
@@ -5,9 +7,9 @@ export class Renderer {
         this.manifest = manfiest;
     }
 
-    async render(...components) {
+    render(...components) {
         return Root.render({
-            nodes: await Promise.all(components.map(async (c) => (await manifest[c].server).default)),
+            nodes: components.map((c) => this.manifest[c].server),
         });
     }
 }

@@ -6,7 +6,7 @@ import { build } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
-import { join, basename } from "node:path";
+import { join, relative } from "node:path";
 import { copyFile, readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
@@ -74,7 +74,6 @@ async function resolveConfig() {
     try {
         /** @type {Config} */
         const configFile = (await import(join(cwd(), tempFile))).default
-        // return merge(defaultConfig, configFile);
         return configFile;
     } finally {
         await unlink(tempFile);
@@ -92,7 +91,8 @@ async function resolveConfig() {
 async function extract(inputConfig) {
     const defaultConfig = {
         template: "web/app.html",
-        components: ["web/**/*.svelte", "!web/lib/**"],
+        srcDir: "web/",
+        ignore: ["lib/"],
         vite: {
             plugins: [
                 svelte({
@@ -110,8 +110,9 @@ async function extract(inputConfig) {
     return {
         templateFile: config.template,
         componentMap: Object.fromEntries(
-            (await glob(config.components))
-            .map((path) => [basename(path).replace(/\.svelte$/, ""), path])
+            // (await glob(["**/*.svelte"], { cwd: config.srcDir, ignore: config.ignore }))
+            (await glob([join(config.srcDir, "**/*.svelte")], { ignore: config.ignore.map((path) => join(config.srcDir, path)) }))
+            .map((path) => [relative(config.srcDir, path).replace(/\.svelte$/, ""), path])
         ),
         viteConfig: config.vite,
     }
@@ -122,6 +123,7 @@ async function extract(inputConfig) {
  * @param {import("vite").UserConfig} viteConfig
  */
 async function buildClient(componentMap, viteConfig) {
+    /** @type {import("vite").UserConfig} */
     const config = {
         build: {
             ssr: false,
@@ -143,6 +145,7 @@ async function buildClient(componentMap, viteConfig) {
         },
         // appType: "custom",
     };
+
     await build(merge(viteConfig, config));
 }
 
@@ -150,17 +153,25 @@ async function buildClient(componentMap, viteConfig) {
  * @param {Record<string, string>} componentMap
  */
 async function generateManifest(componentMap) {
+    const idxComponentMap = Object.entries(componentMap);
+
     let manifest = "";
 
     manifest += `import { Renderer } from "golte/js/ssr.js";\n\n`;
-    
-    manifest += `const manifest = {`;
+
+    for (const i in idxComponentMap) {
+        const [, srcpath] = idxComponentMap[i];
+        manifest += `import component_${i} from "../../${srcpath}";\n`
+    }
+    manifest += `\n`;
+
+    manifest += `const manifest = {\n`;
     const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
-    for (const [name, srcpath] of Object.entries(componentMap)) {
+    for (const i in idxComponentMap) {
+        const [name, srcpath] = idxComponentMap[i];
         const destpath = clientManifest[srcpath].file;
-        manifest += `
-    "${name}": {
-        server: import("../../${srcpath}"),
+        manifest += `   "${name}": {
+        server: component_${i},
         client: "${destpath}",
     },\n`;
     }
@@ -170,7 +181,7 @@ async function generateManifest(componentMap) {
 const renderer = new Renderer(manifest);
 
 export function render(components) {
-    renderer.render(manifest, components);
+    return renderer.render(components);
 }\n`
 
     await mkdir(".golte/generated", { recursive: true });
@@ -181,6 +192,7 @@ export function render(components) {
  * @param {import("vite").UserConfig} viteConfig
  */
 async function buildServer(viteConfig) {
+    /** @type {import("vite").UserConfig} */
     const config = {
         build: {
             ssr: true,
@@ -194,6 +206,7 @@ async function buildServer(viteConfig) {
             },
             rollupOptions: {
                 output: {
+                    inlineDynamicImports: true,
                     entryFileNames: "[name].js",
                     chunkFileNames: "chunks/[name]-[hash].js",
                 }
@@ -201,6 +214,7 @@ async function buildServer(viteConfig) {
         },
         // appType: "custom",
     };
+    
     await build(merge(viteConfig, config));
 }
 
