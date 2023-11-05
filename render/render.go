@@ -1,4 +1,4 @@
-package golte
+package render
 
 import (
 	"io/fs"
@@ -7,16 +7,16 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 )
 
-type Golte struct {
+type Renderer struct {
 	vm     *goja.Runtime
 	render func(args []string) (Result, error)
 }
 
-func (g *Golte) Render(components ...string) (Result, error) {
+func (g *Renderer) Render(components ...string) (Result, error) {
 	return g.render(components)
 }
 
-func New(fsys fs.FS) *Golte {
+func New(fsys fs.FS) *Renderer {
 	vm := goja.New()
 	vm.SetFieldNameMapper(goja.UncapFieldNameMapper())
 
@@ -27,7 +27,7 @@ func New(fsys fs.FS) *Golte {
 	var m Manifest
 	vm.ExportTo(require.Require(vm, "./server/manifest.js"), &m)
 
-	return &Golte{
+	return &Renderer{
 		vm:     vm,
 		render: m.Render,
 	}
