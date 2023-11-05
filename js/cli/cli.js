@@ -25,9 +25,12 @@ async function main() {
     await mkdir("dist", { recursive: true });
     await copyFile(templateFile, "dist/template.html");
 
+    await mkdir(".golte/generated", { recursive: true });
+
+    await copyFile("node_modules/golte/js/hydrate.js", ".golte/generated/hydrate.js"),
+
     await buildClient(componentMap, viteConfig);
 
-    await mkdir(".golte/generated", { recursive: true });
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
     await generateManifest(componentMap);
@@ -137,12 +140,18 @@ async function buildClient(componentMap, viteConfig) {
             lib: {
                 formats: ["es"],
                 entry: [
-                    ...Object.values(componentMap)
+                    ".golte/generated/hydrate.js",
+                    ...Object.values(componentMap),
                 ],
             },
             rollupOptions: {
                 output: {
-                    entryFileNames: "entries/[name]-[hash].js",
+                    entryFileNames: (chunk) => {
+                        if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
+                            return "hydrate.js";
+                        }
+                        return "entries/[name]-[hash].js"
+                    },
                     chunkFileNames: "chunks/[name]-[hash].js",
                     assetFileNames: "assets/[name]-[hash].[ext]",
                 }
