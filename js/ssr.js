@@ -7,7 +7,10 @@ export class Renderer {
         this.manifest = manfiest;
     }
 
-    render(...components) {
+    /**
+     * @param {string[]} components
+     */
+    render(components) {
         return Root.render({
             nodes: components.map((c) => this.manifest[c].server),
         });
