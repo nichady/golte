@@ -1,22 +1,23 @@
 package render
 
 import (
+	"io"
 	"io/fs"
+	"text/template"
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/require"
 )
 
 type Renderer struct {
-	vm     *goja.Runtime
-	render func(args []string) (Result, error)
-}
-
-func (g *Renderer) Render(components ...string) (Result, error) {
-	return g.render(components)
+	template *template.Template
+	vm       *goja.Runtime
+	render   func(args []string) (result, error)
 }
 
 func New(fsys fs.FS) *Renderer {
+	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
+
 	vm := goja.New()
 	vm.SetFieldNameMapper(goja.UncapFieldNameMapper())
 
@@ -28,17 +29,35 @@ func New(fsys fs.FS) *Renderer {
 	vm.ExportTo(require.Require(vm, "./server/manifest.js"), &m)
 
 	return &Renderer{
-		vm:     vm,
-		render: m.Render,
+		template: tmpl,
+		vm:       vm,
+		render:   m.Render,
 	}
 }
 
-type Result struct {
+func (g *Renderer) Render(w io.Writer, components ...string) error {
+	r, err := g.render(components)
+	if err != nil {
+		return err
+	}
+
+	return g.template.Execute(w, data{
+		Head: r.Head,
+		Body: r.Html,
+	})
+}
+
+type result struct {
 	Html string
 	Css  any
 	Head string
 }
 
+type data struct {
+	Head string
+	Body string
+}
+
 type Manifest struct {
-	Render func(args []string) (Result, error)
+	Render func(args []string) (result, error)
 }
