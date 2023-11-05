@@ -36,24 +36,15 @@ func New(fsys fs.FS) *Renderer {
 }
 
 func (g *Renderer) Render(w io.Writer, components ...string) error {
-	r, err := g.render(components)
+	result, err := g.render(components)
 	if err != nil {
 		return err
 	}
 
-	return g.template.Execute(w, data{
-		Head: r.Head,
-		Body: r.Html,
-	})
+	return g.template.Execute(w, result)
 }
 
 type result struct {
-	Html string
-	Css  any
-	Head string
-}
-
-type data struct {
 	Head string
 	Body string
 }

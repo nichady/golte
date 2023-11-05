@@ -89,15 +89,19 @@ async function resolveConfig() {
  * }>}
  */
 async function extract(inputConfig) {
+    /** @type {Config} */
     const defaultConfig = {
         template: "web/app.html",
         srcDir: "web/",
         ignore: ["lib/"],
         vite: {
+            build: {
+                cssCodeSplit: true,
+            },
             plugins: [
                 svelte({
-                    emitCss: false,
                     compilerOptions: {
+                        // css: "external",
                         hydratable: true,
                     }
                 })
@@ -140,6 +144,7 @@ async function buildClient(componentMap, viteConfig) {
                 output: {
                     entryFileNames: "entries/[name]-[hash].js",
                     chunkFileNames: "chunks/[name]-[hash].js",
+                    assetFileNames: "assets/[name]-[hash].[ext]",
                 }
             },
         },
@@ -169,11 +174,20 @@ async function generateManifest(componentMap) {
     const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
     for (const i in idxComponentMap) {
         const [name, srcpath] = idxComponentMap[i];
-        const destpath = clientManifest[srcpath].file;
-        manifest += `   "${name}": {
-        server: component_${i},
-        client: "${destpath}",
-    },\n`;
+        const component = clientManifest[srcpath];
+
+        manifest += `\t"${name}": {\n`;
+        manifest += `\t\tserver: component_${i},\n`;
+        manifest += `\t\tclient: "${component.file}",\n`;
+        manifest += `\t\tcss: [\n`;
+        for (const css of component.css ?? []) {
+            manifest += `\t\t\t"${css}",\n`;
+        }
+        manifest += `\t\t],\n`;
+        manifest += `\t},\n`;
+
+
+
     }
     manifest += `};\n`;
 
