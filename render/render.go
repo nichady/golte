@@ -3,6 +3,7 @@ package render
 import (
 	"io"
 	"io/fs"
+	"sync"
 	"text/template"
 
 	"github.com/dop251/goja"
@@ -13,6 +14,7 @@ type Renderer struct {
 	template *template.Template
 	vm       *goja.Runtime
 	render   func(args []string) (result, error)
+	mtx      sync.Mutex
 }
 
 func New(fsys fs.FS) *Renderer {
@@ -36,7 +38,10 @@ func New(fsys fs.FS) *Renderer {
 }
 
 func (g *Renderer) Render(w io.Writer, components ...string) error {
+	g.mtx.Lock()
 	result, err := g.render(components)
+	g.mtx.Unlock()
+
 	if err != nil {
 		return err
 	}
