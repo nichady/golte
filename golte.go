@@ -21,19 +21,19 @@ type data struct {
 func New(fsys fs.FS) func(http.Handler) http.Handler {
 	renderer := render.New(fsys)
 
-	sub, err := fs.Sub(fsys, "client")
+	client, err := fs.Sub(fsys, "client")
 	if err != nil {
 		panic(err)
 	}
 
 	return func(next http.Handler) http.Handler {
-		m := http.NewServeMux()
-		m.Handle("/_golte/", http.StripPrefix("/_golte/", http.FileServer(http.FS(sub))))
-		m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		mux := http.NewServeMux()
+		mux.Handle("/_golte/", http.StripPrefix("/_golte/", fileServer(client)))
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			r = r.WithContext(context.WithValue(r.Context(), key, &data{renderer: renderer}))
 			next.ServeHTTP(w, r)
 		})
-		return m
+		return mux
 	}
 }
 
