@@ -9,8 +9,8 @@ import (
 type contextKey struct{}
 
 type renderContext = struct {
-	renderer   *render.Renderer
-	components []renderEntry
+	renderer *render.Renderer
+	entries  []render.Entry
 }
 
 func getRenderContext(r *http.Request) *renderContext {
@@ -20,9 +20,4 @@ func getRenderContext(r *http.Request) *renderContext {
 	}
 
 	return rctx
-}
-
-type renderEntry struct {
-	component string
-	props     map[string]any
 }

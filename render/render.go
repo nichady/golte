@@ -14,7 +14,7 @@ type Renderer struct {
 	template   *template.Template
 	vm         *goja.Runtime
 	assetsPath string
-	render     func(assetsPath string, args []string) (result, error)
+	render     func(assetsPath string, entries []Entry) (result, error)
 	mtx        sync.Mutex
 }
 
@@ -28,7 +28,7 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 		return fs.ReadFile(fsys, path)
 	}).Enable(vm)
 
-	var m Manifest
+	var m renderfile
 	vm.ExportTo(require.Require(vm, "./server/renderfile.cjs"), &m)
 
 	return &Renderer{
@@ -39,7 +39,7 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 	}
 }
 
-func (g *Renderer) Render(w io.Writer, components ...string) error {
+func (g *Renderer) Render(w io.Writer, components []Entry) error {
 	g.mtx.Lock()
 	result, err := g.render(g.assetsPath, components)
 	g.mtx.Unlock()
@@ -56,6 +56,11 @@ type result struct {
 	Body string
 }
 
-type Manifest struct {
-	Render func(assetsPath string, args []string) (result, error)
+type renderfile struct {
+	Render func(assetsPath string, entries []Entry) (result, error)
+}
+
+type Entry struct {
+	Comp  string
+	Props map[string]any
 }

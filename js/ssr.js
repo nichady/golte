@@ -9,15 +9,18 @@ export class Renderer {
 
     /**
      * @param {string} assetsPath 
-     * @param {string[]} components
+     * @param {{ comp: string, props: {} }[]} entries
      */
-    render(assetsPath, components) {
+    render(assetsPath, entries) {
         const serverNodes = [];
         const clientNodes = [];
         const stylesheets = new Set();
-        for (const c of components.map((c) => this.manifest[c])) {
-            serverNodes.push(c.server);
-            clientNodes.push(c.client);
+
+        for (const e of entries) {
+            const c = this.manifest[e.comp];
+            serverNodes.push({ comp: c.server, props: e.props });
+            // clientNodes.push(assetsPath + c.client);
+            clientNodes.push({ comp: assetsPath + c.client, props: e.props });
             for (const path of c.css) {
                 stylesheets.add(path);
             }
@@ -33,7 +36,7 @@ export class Renderer {
             <script>
                 (async function () {
                     const target = document.currentScript.parentElement;
-                    const { hydrate } = await import("/_golte/hydrate.js");
+                    const { hydrate } = await import("${assetsPath}hydrate.js");
                     await hydrate(target, ${JSON.stringify(clientNodes)});
                 })();
             </script>

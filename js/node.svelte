@@ -2,10 +2,10 @@
 	export let nodes;
 	export let index;
 
-	let Comp = nodes[index];
+	const { comp, props } = nodes[index];
 </script>
 
-<svelte:component this={Comp}>
+<svelte:component this={comp} {...props}>
 	{#if nodes[index+1] }
 		<svelte:self {nodes} index={index+1} />
 	{/if}

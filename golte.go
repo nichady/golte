@@ -42,41 +42,38 @@ func New(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, 
 	}, assetsHandler.ServeHTTP
 }
 
-func AddComponent(r *http.Request, component string) {
-	rctx := getRenderContext(r)
-	rctx.components = append(rctx.components, renderEntry{
-		component: component,
-	})
-}
-
-func Render(w io.Writer, r *http.Request) error {
-	rctx := getRenderContext(r)
-
-	keys := make([]string, len(rctx.components))
-	i := 0
-	for _, entry := range rctx.components {
-		keys[i] = entry.component
-		i++
-	}
-
-	return rctx.renderer.Render(w, keys...)
-}
-
 func Layout(component string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			AddComponent(r, component)
+			AddLayout(r, component, nil)
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
+func AddLayout(r *http.Request, component string, props map[string]any) {
+	if props == nil {
+		props = map[string]any{}
+	}
+
+	rctx := getRenderContext(r)
+	rctx.entries = append(rctx.entries, render.Entry{
+		Comp:  component,
+		Props: props,
+	})
+}
+
 func Page(component string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		AddComponent(r, component)
+		AddLayout(r, component, nil)
 		err := Render(w, r)
 		if err != nil {
 			// TODO
 		}
 	})
+}
+
+func Render(w io.Writer, r *http.Request) error {
+	rctx := getRenderContext(r)
+	return rctx.renderer.Render(w, rctx.entries)
 }
