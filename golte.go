@@ -71,6 +71,7 @@ func Layout(component string) func(http.Handler) http.Handler {
 }
 
 // AddLayout adds the specified component with props to the request's context.
+// The props must consist only of values that can be serialized as JSON.
 func AddLayout(r *http.Request, component string, props map[string]any) {
 	if props == nil {
 		props = map[string]any{}
@@ -99,6 +100,7 @@ func Page(component string) http.HandlerFunc {
 
 // RenderPage renders the specified component with props to the writer, along with
 // any other components added to the request's context.
+// The props must consist only of values that can be serialized as JSON.
 func RenderPage(w io.Writer, r *http.Request, component string, props map[string]any) {
 	AddLayout(r, component, nil)
 	err := Render(w, r)
