@@ -11,13 +11,14 @@ import (
 )
 
 type Renderer struct {
-	template *template.Template
-	vm       *goja.Runtime
-	render   func(args []string) (result, error)
-	mtx      sync.Mutex
+	template   *template.Template
+	vm         *goja.Runtime
+	assetsPath string
+	render     func(assetsPath string, args []string) (result, error)
+	mtx        sync.Mutex
 }
 
-func New(fsys fs.FS) *Renderer {
+func New(fsys fs.FS, assetsPath string) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
@@ -28,18 +29,19 @@ func New(fsys fs.FS) *Renderer {
 	}).Enable(vm)
 
 	var m Manifest
-	vm.ExportTo(require.Require(vm, "./server/manifest.js"), &m)
+	vm.ExportTo(require.Require(vm, "./server/renderfile.cjs"), &m)
 
 	return &Renderer{
-		template: tmpl,
-		vm:       vm,
-		render:   m.Render,
+		template:   tmpl,
+		vm:         vm,
+		render:     m.Render,
+		assetsPath: assetsPath,
 	}
 }
 
 func (g *Renderer) Render(w io.Writer, components ...string) error {
 	g.mtx.Lock()
-	result, err := g.render(components)
+	result, err := g.render(g.assetsPath, components)
 	g.mtx.Unlock()
 
 	if err != nil {
@@ -55,5 +57,5 @@ type result struct {
 }
 
 type Manifest struct {
-	Render func(args []string) (result, error)
+	Render func(assetsPath string, args []string) (result, error)
 }

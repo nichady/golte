@@ -5,36 +5,61 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/nichady/golte/render"
 )
 
-type golteKey struct{}
-
-var key golteKey
-
-type data struct {
-	renderer   *render.Renderer
-	components []string
+type Options struct {
+	AssetsPath string
 }
 
-func New(fsys fs.FS) func(http.Handler) http.Handler {
-	renderer := render.New(fsys)
+func New(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
+	if !strings.HasPrefix(opts.AssetsPath, "/") {
+		opts.AssetsPath = "/" + opts.AssetsPath
+	}
+
+	if !strings.HasSuffix(opts.AssetsPath, "/") {
+		opts.AssetsPath = opts.AssetsPath + "/"
+	}
 
 	client, err := fs.Sub(fsys, "client")
 	if err != nil {
 		panic(err)
 	}
 
+	renderer := render.New(fsys, opts.AssetsPath)
+	assetsHandler := http.StripPrefix(opts.AssetsPath, fileServer(client))
+
 	return func(next http.Handler) http.Handler {
-		mux := http.NewServeMux()
-		mux.Handle("/_golte/", http.StripPrefix("/_golte/", fileServer(client)))
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			r = r.WithContext(context.WithValue(r.Context(), key, &data{renderer: renderer}))
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), contextKey{}, &renderContext{
+				renderer: renderer,
+			})
+			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
 		})
-		return mux
+	}, assetsHandler.ServeHTTP
+}
+
+func AddComponent(r *http.Request, component string) {
+	rctx := getRenderContext(r)
+	rctx.components = append(rctx.components, renderEntry{
+		component: component,
+	})
+}
+
+func Render(w io.Writer, r *http.Request) error {
+	rctx := getRenderContext(r)
+
+	keys := make([]string, len(rctx.components))
+	i := 0
+	for _, entry := range rctx.components {
+		keys[i] = entry.component
+		i++
 	}
+
+	return rctx.renderer.Render(w, keys...)
 }
 
 func Layout(component string) func(http.Handler) http.Handler {
@@ -54,18 +79,4 @@ func Page(component string) http.HandlerFunc {
 			// TODO
 		}
 	})
-}
-
-func getData(r *http.Request) *data {
-	return r.Context().Value(key).(*data)
-}
-
-func AddComponent(r *http.Request, component string) {
-	data := getData(r)
-	data.components = append(data.components, component)
-}
-
-func Render(w io.Writer, r *http.Request) error {
-	data := getData(r)
-	return data.renderer.Render(w, data.components...)
 }

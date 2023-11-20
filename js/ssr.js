@@ -8,9 +8,10 @@ export class Renderer {
     }
 
     /**
+     * @param {string} assetsPath 
      * @param {string[]} components
      */
-    render(components) {
+    render(assetsPath, components) {
         const serverNodes = [];
         const clientNodes = [];
         const stylesheets = new Set();
@@ -25,7 +26,7 @@ export class Renderer {
         let { html, head } = Root.render({ nodes: serverNodes });
 
         for (const path of stylesheets) {
-            head += `\n<link href="_golte/${path}" rel="stylesheet">`;
+            head += `\n<link href="${assetsPath}${path}" rel="stylesheet">`;
         }
 
         html += `

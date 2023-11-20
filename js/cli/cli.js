@@ -33,7 +33,7 @@ async function main() {
 
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
-    await generateManifest(componentMap);
+    await generateRenderfile(componentMap);
 
     await buildServer(viteConfig);
 }
@@ -150,10 +150,10 @@ async function buildClient(componentMap, viteConfig) {
                         if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
                             return "hydrate.js";
                         }
-                        return "entries/[name]-[hash].js"
+                        return "js/[name]-[hash].js"
                     },
-                    chunkFileNames: "chunks/[name]-[hash].js",
-                    assetFileNames: "assets/[name]-[hash].[ext]",
+                    chunkFileNames: "js/[name]-[hash].js",
+                    assetFileNames: "[ext]/[name]-[hash].[ext]",
                 }
             },
         },
@@ -166,49 +166,49 @@ async function buildClient(componentMap, viteConfig) {
 /**
  * @param {Record<string, string>} componentMap
  */
-async function generateManifest(componentMap) {
+async function generateRenderfile(componentMap) {
     const idxComponentMap = Object.entries(componentMap);
 
-    let manifest = "";
+    let renderfile = "";
 
-    manifest += `import { Renderer } from "golte/js/ssr.js";\n\n`;
+    renderfile += `import { Renderer } from "golte/js/ssr.js";\n\n`;
 
     for (const i in idxComponentMap) {
         const [, srcpath] = idxComponentMap[i];
-        manifest += `import component_${i} from "../../${srcpath}";\n`
+        renderfile += `import component_${i} from "../../${srcpath}";\n`
     }
-    manifest += `\n`;
+    renderfile += `\n`;
 
-    manifest += `const manifest = {\n`;
+    renderfile += `const manifest = {\n`;
     const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
     for (const i in idxComponentMap) {
         const [name, srcpath] = idxComponentMap[i];
         const component = clientManifest[srcpath];
 
-        manifest += `\t"${name}": {\n`;
-        manifest += `\t\tserver: component_${i},\n`;
-        manifest += `\t\tclient: "${component.file}",\n`;
-        manifest += `\t\tcss: [\n`;
+        renderfile += `\t"${name}": {\n`;
+        renderfile += `\t\tserver: component_${i},\n`;
+        renderfile += `\t\tclient: "${component.file}",\n`;
+        renderfile += `\t\tcss: [\n`;
         for (const css of component.css ?? []) {
-            manifest += `\t\t\t"${css}",\n`;
+            renderfile += `\t\t\t"${css}",\n`;
         }
-        manifest += `\t\t],\n`;
-        manifest += `\t},\n`;
+        renderfile += `\t\t],\n`;
+        renderfile += `\t},\n`;
 
 
 
     }
-    manifest += `};\n`;
+    renderfile += `};\n`;
 
-    manifest += `
+    renderfile += `
 const renderer = new Renderer(manifest);
 
-export function render(components) {
-    return renderer.render(components);
+export function render(assetsPath, components) {
+    return renderer.render(assetsPath, components);
 }\n`
 
     await mkdir(".golte/generated", { recursive: true });
-    await writeFile(".golte/generated/manifest.js", manifest)
+    await writeFile(".golte/generated/renderfile.js", renderfile)
 }
 
 /**
@@ -223,16 +223,7 @@ async function buildServer(viteConfig) {
             minify: false,
             lib: {
                 formats: ["cjs"],
-                entry: {
-                    "manifest": ".golte/generated/manifest.js",
-                },
-            },
-            rollupOptions: {
-                output: {
-                    inlineDynamicImports: true,
-                    entryFileNames: "[name].js",
-                    chunkFileNames: "chunks/[name]-[hash].js",
-                }
+                entry: ".golte/generated/renderfile.js",
             },
         },
         // appType: "custom",
