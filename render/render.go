@@ -29,7 +29,7 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 	}).Enable(vm)
 
 	var m renderfile
-	vm.ExportTo(require.Require(vm, "./server/renderfile.cjs"), &m)
+	vm.ExportTo(require.Require(vm, "./renderfile.cjs"), &m)
 
 	return &Renderer{
 		template:   tmpl,

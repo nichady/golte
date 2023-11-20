@@ -35,12 +35,17 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 		opts.AssetsPath = opts.AssetsPath + "/"
 	}
 
+	serverDir, err := fs.Sub(fsys, "server")
+	if err != nil {
+		panic(err)
+	}
+
 	clientDir, err := fs.Sub(fsys, "client")
 	if err != nil {
 		panic(err)
 	}
 
-	renderer := render.New(fsys, opts.AssetsPath)
+	renderer := render.New(serverDir, opts.AssetsPath)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

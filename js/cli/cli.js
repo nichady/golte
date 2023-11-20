@@ -22,20 +22,15 @@ import merge from "deepmerge";
 async function main() {
     const { templateFile, componentMap, viteConfig } = await extract(await resolveConfig());
 
-    await mkdir("dist", { recursive: true });
-    await copyFile(templateFile, "dist/template.html");
-
     await mkdir(".golte/generated", { recursive: true });
-
     await copyFile("node_modules/golte/js/hydrate.js", ".golte/generated/hydrate.js"),
 
     await buildClient(componentMap, viteConfig);
-
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
     await generateRenderfile(componentMap);
-
     await buildServer(viteConfig);
+    await copyFile(templateFile, "dist/server/template.html");
 }
 
 /**
