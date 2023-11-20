@@ -10,6 +10,7 @@ import (
 	"github.com/dop251/goja_nodejs/require"
 )
 
+// Renderer is a renderer for svelte components.
 type Renderer struct {
 	template   *template.Template
 	vm         *goja.Runtime
@@ -18,6 +19,10 @@ type Renderer struct {
 	mtx        sync.Mutex
 }
 
+// New constructs a new renderer from the given filesystem.
+// The filesystem should be the "server" subdirectory of the build
+// output from "npx golte". assetsPath should be the absolute path
+// from which asset files are expected to be served.
 func New(fsys fs.FS, assetsPath string) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
@@ -39,6 +44,7 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 	}
 }
 
+// Render renders a slice of entries into the writer
 func (g *Renderer) Render(w io.Writer, components []Entry) error {
 	g.mtx.Lock()
 	result, err := g.render(g.assetsPath, components)
@@ -60,6 +66,7 @@ type renderfile struct {
 	Render func(assetsPath string, entries []Entry) (result, error)
 }
 
+// Entry represents a component to be rendered, along with its props.
 type Entry struct {
 	Comp  string
 	Props map[string]any
