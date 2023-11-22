@@ -1,5 +1,5 @@
 <script>
-    import { Node } from "./node.js";
+    import { Node } from "./node-wrapper.js";
 
     export let nodes = [];
 </script>

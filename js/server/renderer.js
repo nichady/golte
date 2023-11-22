@@ -1,6 +1,6 @@
 // @ts-check
 
-import Root from "./root.svelte"
+import Root from "golte/js/shared/Root.svelte";
 
 export class Renderer {
     constructor(manfiest) {

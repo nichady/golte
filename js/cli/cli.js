@@ -23,7 +23,7 @@ async function main() {
     const { templateFile, componentMap, viteConfig } = await extract(await resolveConfig());
 
     await mkdir(".golte/generated", { recursive: true });
-    await copyFile("node_modules/golte/js/hydrate.js", ".golte/generated/hydrate.js"),
+    await copyFile("node_modules/golte/js/client/hydrate.js", ".golte/generated/hydrate.js"),
 
     await buildClient(componentMap, viteConfig);
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
@@ -166,7 +166,7 @@ async function generateRenderfile(componentMap) {
 
     let renderfile = "";
 
-    renderfile += `import { Renderer } from "golte/js/ssr.js";\n\n`;
+    renderfile += `import { Renderer } from "golte/js/server";\n\n`;
 
     for (const i in idxComponentMap) {
         const [, srcpath] = idxComponentMap[i];
@@ -218,7 +218,7 @@ async function buildServer(viteConfig) {
             minify: false,
             lib: {
                 formats: ["cjs"],
-                entry: [".golte/generated/renderfile.js", "node_modules/golte/js/exports.js"],
+                entry: [".golte/generated/renderfile.js", "node_modules/golte/js/server/exports.js"],
             },
         },
         // appType: "custom",

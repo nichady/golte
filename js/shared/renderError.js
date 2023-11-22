@@ -8,7 +8,3 @@ export class RenderError extends Error {
         this.index = index;
     }
 }
-
-export function isRenderError(err) {
-    return err instanceof RenderError;
-}

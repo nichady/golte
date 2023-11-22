@@ -1,4 +1,6 @@
-import Root from "golte/js/root.svelte";
+// @ts-check
+
+import Root from "golte/js/shared/Root.svelte";
 
 export async function hydrate(target, nodes) {
     nodes = await Promise.all(nodes.map(async (n) => ({

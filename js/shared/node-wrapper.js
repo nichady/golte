@@ -5,19 +5,18 @@
 
 //@ts-check
 
-import Node from "./node.svelte";
-import { RenderError } from "./exports.js"
+import Original from "./Node.svelte";
+import { RenderError } from "./renderError.js"
 
-const wrapper = { };
-
-if (import.meta.env.SSR) {
-    wrapper.$$render = (result, props, bindings, slots, context) => {
+const wrapper = {
+    $$render: (result, props, bindings, slots, context) => {
         try {
-            return Node.$$render(result, props, bindings, slots, context);
+            return Original.$$render(result, props, bindings, slots, context);
         } catch (err) {
+            if (err instanceof RenderError) throw err;
             throw new RenderError(err, props.index);
         }
     }
-}
+};
 
-export { wrapper as Node };
+export const Node = import.meta.env.SSR ? wrapper : Original;

@@ -1,7 +1,7 @@
-<!-- Do not use this component directly; instead use the wrapper file. -->
+<!-- Do not use this component directly; instead use wrapper file. -->
 
 <script>
-	import { Node } from "./node.js";
+	import { Node } from "./node-wrapper.js";
 
 	export let nodes;
 	export let index;
