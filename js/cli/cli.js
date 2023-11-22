@@ -218,7 +218,7 @@ async function buildServer(viteConfig) {
             minify: false,
             lib: {
                 formats: ["cjs"],
-                entry: ".golte/generated/renderfile.js",
+                entry: [".golte/generated/renderfile.js", "node_modules/golte/js/exports.js"],
             },
         },
         // appType: "custom",

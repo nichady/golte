@@ -7,16 +7,19 @@ import (
 	"text/template"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
 )
 
-// Renderer is a renderer for svelte components.
+// Renderer is a renderer for svelte components. It uses a *goja.Runtime underneath the hood
+// to run javascript.
 type Renderer struct {
-	template   *template.Template
-	vm         *goja.Runtime
-	assetsPath string
-	render     func(assetsPath string, entries []Entry) (result, error)
-	mtx        sync.Mutex
+	template      *template.Template
+	vm            *goja.Runtime
+	assetsPath    string
+	render        func(assetsPath string, entries []Entry) (result, error)
+	isRenderError func(goja.Value) bool
+	mtx           sync.Mutex
 }
 
 // New constructs a new renderer from the given filesystem.
@@ -33,14 +36,20 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 		return fs.ReadFile(fsys, path)
 	}).Enable(vm)
 
-	var m renderfile
-	vm.ExportTo(require.Require(vm, "./renderfile.cjs"), &m)
+	console.Enable(vm)
+
+	var renderfile renderfile
+	vm.ExportTo(require.Require(vm, "./renderfile.cjs"), &renderfile)
+
+	var exports exports
+	vm.ExportTo(require.Require(vm, "./exports.cjs"), &exports)
 
 	return &Renderer{
-		template:   tmpl,
-		vm:         vm,
-		render:     m.Render,
-		assetsPath: assetsPath,
+		template:      tmpl,
+		vm:            vm,
+		render:        renderfile.Render,
+		isRenderError: exports.IsRenderError,
+		assetsPath:    assetsPath,
 	}
 }
 
@@ -70,4 +79,34 @@ type renderfile struct {
 type Entry struct {
 	Comp  string
 	Props map[string]any
+}
+
+func (g *Renderer) ToRenderError(err error) (RenderError, bool) {
+	ex, ok := err.(*goja.Exception)
+	if !ok {
+		return RenderError{}, false
+	}
+
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	if !g.isRenderError(ex.Value()) {
+		return RenderError{}, false
+	}
+
+	var rerr RenderError
+	if g.vm.ExportTo(ex.Value(), &rerr) != nil {
+		return RenderError{}, false
+	}
+
+	return rerr, true
+}
+
+type exports struct {
+	IsRenderError func(goja.Value) bool
+}
+
+type RenderError struct {
+	Cause goja.Value
+	Index int
 }

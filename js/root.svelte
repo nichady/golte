@@ -1,5 +1,5 @@
 <script>
-    import Node from "./node.svelte";
+    import { Node } from "./node.js";
 
     export let nodes = [];
 </script>
