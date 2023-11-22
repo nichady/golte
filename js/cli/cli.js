@@ -143,7 +143,7 @@ async function buildClient(componentMap, viteConfig) {
                 output: {
                     entryFileNames: (chunk) => {
                         if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
-                            return "hydrate.js";
+                            return "js/hydrate.js";
                         }
                         return "js/[name]-[hash].js"
                     },

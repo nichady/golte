@@ -36,7 +36,7 @@ export class Renderer {
             <script>
                 (async function () {
                     const target = document.currentScript.parentElement;
-                    const { hydrate } = await import("${assetsPath}hydrate.js");
+                    const { hydrate } = await import("${assetsPath}js/hydrate.js");
                     await hydrate(target, ${JSON.stringify(clientNodes)});
                 })();
             </script>
