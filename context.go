@@ -8,15 +8,15 @@ import (
 
 type contextKey struct{}
 
-type renderContext struct {
-	renderer           *render.Renderer
-	renderErrorHandler func(url string, entries []render.Entry, index int, err error)
-	layouts            []render.Entry
-	errpage            string
+type RenderContext struct {
+	Renderer           *render.Renderer
+	RenderErrorHandler func(url string, entries []render.Entry, index int, err error)
+	Layouts            []render.Entry
+	ErrPage            string
 }
 
-func getRenderContext(r *http.Request) *renderContext {
-	rctx, ok := r.Context().Value(contextKey{}).(*renderContext)
+func GetRenderContext(r *http.Request) *RenderContext {
+	rctx, ok := r.Context().Value(contextKey{}).(*RenderContext)
 	if !ok {
 		panic("golte middleware not registered")
 	}

@@ -59,9 +59,9 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), contextKey{}, &renderContext{
-				renderer:           renderer,
-				renderErrorHandler: opts.RenderErrorHandler,
+			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
+				Renderer:           renderer,
+				RenderErrorHandler: opts.RenderErrorHandler,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -94,8 +94,8 @@ func Page(component string) http.HandlerFunc {
 func Error(component string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rctx := getRenderContext(r)
-			rctx.errpage = component
+			rctx := GetRenderContext(r)
+			rctx.ErrPage = component
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -108,8 +108,8 @@ func AddLayout(r *http.Request, component string, props map[string]any) {
 		props = map[string]any{}
 	}
 
-	rctx := getRenderContext(r)
-	rctx.layouts = append(rctx.layouts, render.Entry{
+	rctx := GetRenderContext(r)
+	rctx.Layouts = append(rctx.Layouts, render.Entry{
 		Comp:  component,
 		Props: props,
 	})
@@ -120,20 +120,20 @@ func AddLayout(r *http.Request, component string, props map[string]any) {
 // The props must consist only of values that can be serialized as JSON.
 // If an error occurs in rendering, it will render the current error page.
 func RenderPage(w http.ResponseWriter, r *http.Request, component string, props map[string]any) {
-	rctx := getRenderContext(r)
+	rctx := GetRenderContext(r)
 	page := render.Entry{Comp: component, Props: props}
-	entries := append(rctx.layouts, page)
+	entries := append(rctx.Layouts, page)
 
-	err := rctx.renderer.Render(w, entries)
+	err := rctx.Renderer.Render(w, entries)
 	if err != nil {
-		rerr, ok := rctx.renderer.ToRenderError(err)
+		rerr, ok := rctx.Renderer.ToRenderError(err)
 		if ok {
-			rctx.renderErrorHandler(r.URL.String(), entries, rerr.Index, err)
-			rctx.layouts = rctx.layouts[:rerr.Index]
+			rctx.RenderErrorHandler(r.URL.String(), entries, rerr.Index, err)
+			rctx.Layouts = rctx.Layouts[:rerr.Index]
 			RenderErrorPage(w, r, rerr.Cause.String(), http.StatusInternalServerError)
 		} else {
 			// this shouldn't happen
-			rctx.renderErrorHandler(r.URL.String(), entries, -1, err)
+			rctx.RenderErrorHandler(r.URL.String(), entries, -1, err)
 			RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	}
@@ -142,18 +142,18 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 // Render renders all the components in the request's context to the writer.
 // If an error occurs in rendering, it will render the current error page.
 func Render(w http.ResponseWriter, r *http.Request) {
-	rctx := getRenderContext(r)
+	rctx := GetRenderContext(r)
 
-	err := rctx.renderer.Render(w, rctx.layouts)
+	err := rctx.Renderer.Render(w, rctx.Layouts)
 	if err != nil {
-		rerr, ok := rctx.renderer.ToRenderError(err)
+		rerr, ok := rctx.Renderer.ToRenderError(err)
 		if ok {
-			rctx.renderErrorHandler(r.URL.String(), rctx.layouts, rerr.Index, err)
-			rctx.layouts = rctx.layouts[:rerr.Index]
+			rctx.RenderErrorHandler(r.URL.String(), rctx.Layouts, rerr.Index, err)
+			rctx.Layouts = rctx.Layouts[:rerr.Index]
 			RenderErrorPage(w, r, rerr.Cause.String(), http.StatusInternalServerError)
 		} else {
 			// this shouldn't happen
-			rctx.renderErrorHandler(r.URL.String(), rctx.layouts, -1, err)
+			rctx.RenderErrorHandler(r.URL.String(), rctx.Layouts, -1, err)
 			RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	}
@@ -162,20 +162,20 @@ func Render(w http.ResponseWriter, r *http.Request) {
 // RenderErrorPage renders the current error page.
 // If an error occurs while rendering the error page, the fallback error page is used instead.
 func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, status int) {
-	rctx := getRenderContext(r)
-	page := render.Entry{Comp: rctx.errpage, Props: map[string]any{
+	rctx := GetRenderContext(r)
+	page := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
 		"message": message,
 		"code":    status,
 	}}
-	entries := append(rctx.layouts, page)
+	entries := append(rctx.Layouts, page)
 
-	err := rctx.renderer.Render(w, entries)
+	err := rctx.Renderer.Render(w, entries)
 	if err != nil {
-		rerr, ok := rctx.renderer.ToRenderError(err)
+		rerr, ok := rctx.Renderer.ToRenderError(err)
 		if !ok {
-			rctx.renderErrorHandler(r.URL.String(), entries, rerr.Index, err)
+			rctx.RenderErrorHandler(r.URL.String(), entries, rerr.Index, err)
 		} else {
-			rctx.renderErrorHandler(r.URL.String(), entries, -1, err)
+			rctx.RenderErrorHandler(r.URL.String(), entries, -1, err)
 		}
 		RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
 	}
