@@ -9,9 +9,10 @@ import (
 type contextKey struct{}
 
 type renderContext struct {
-	renderer *render.Renderer
-	layouts  []render.Entry
-	errpage  string
+	renderer           *render.Renderer
+	renderErrorHandler func(url string, entries []render.Entry, index int, err error)
+	layouts            []render.Entry
+	errpage            string
 }
 
 func getRenderContext(r *http.Request) *renderContext {
