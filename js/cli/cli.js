@@ -132,7 +132,11 @@ async function buildClient(componentMap, viteConfig) {
             outDir: "dist/client/",
             minify: false,
             manifest: true,
+            // https://github.com/vitejs/vite/issues/4454
+            // lib: {},
             rollupOptions: {
+                // for some reason, vite sets this to false when using rollupOptions.input instead of lib.entry
+                preserveEntrySignatures: "exports-only",
                 input: [
                     ".golte/generated/hydrate.js",
                     ...Object.values(componentMap),
@@ -228,6 +232,8 @@ async function buildServer(viteConfig) {
             ssr: true,
             outDir: "dist/server/",
             minify: false,
+            // https://github.com/vitejs/vite/issues/4454
+            // lib: {},
             rollupOptions: {
                 input: [
                     ".golte/generated/renderfile.js",
