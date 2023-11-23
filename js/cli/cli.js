@@ -132,15 +132,13 @@ async function buildClient(componentMap, viteConfig) {
             outDir: "dist/client/",
             minify: false,
             manifest: true,
-            lib: {
-                formats: ["es"],
-                entry: [
+            rollupOptions: {
+                input: [
                     ".golte/generated/hydrate.js",
                     ...Object.values(componentMap),
                 ],
-            },
-            rollupOptions: {
                 output: {
+                    format: "es",
                     entryFileNames: (chunk) => {
                         if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
                             return "js/hydrate.js";
@@ -230,10 +228,15 @@ async function buildServer(viteConfig) {
             ssr: true,
             outDir: "dist/server/",
             minify: false,
-            lib: {
-                formats: ["cjs"],
-                entry: [".golte/generated/renderfile.js", "node_modules/golte/js/server/exports.js"],
-            },
+            rollupOptions: {
+                input: [
+                    ".golte/generated/renderfile.js",
+                    "node_modules/golte/js/server/exports.js",
+                ],
+                output: {
+                    format: "cjs",
+                }
+            }
         },
         // appType: "custom",
     };
