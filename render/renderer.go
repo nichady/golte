@@ -39,10 +39,10 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 	console.Enable(vm)
 
 	var renderfile renderfile
-	vm.ExportTo(require.Require(vm, "./renderfile.cjs"), &renderfile)
+	vm.ExportTo(require.Require(vm, "./renderfile.js"), &renderfile)
 
 	var exports exports
-	vm.ExportTo(require.Require(vm, "./exports.cjs"), &exports)
+	vm.ExportTo(require.Require(vm, "./exports.js"), &exports)
 
 	return &Renderer{
 		template:      tmpl,

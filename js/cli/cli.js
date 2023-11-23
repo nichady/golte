@@ -141,11 +141,11 @@ async function buildClient(componentMap, viteConfig) {
                     format: "es",
                     entryFileNames: (chunk) => {
                         if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
-                            return "js/hydrate.js";
+                            return "entries/hydrate.js";
                         }
-                        return "js/[name]-[hash].js"
+                        return "entries/[name]-[hash].js"
                     },
-                    chunkFileNames: "js/[name]-[hash].js",
+                    chunkFileNames: "chunks/[name]-[hash].js",
                     assetFileNames: "[ext]/[name]-[hash].[ext]",
                 }
             },
@@ -235,6 +235,9 @@ async function buildServer(viteConfig) {
                 ],
                 output: {
                     format: "cjs",
+                    entryFileNames: "[name].js",
+                    chunkFileNames: "chunks/[name]-[hash].js",
+                    // assetFileNames: "[ext]/[name]-[hash].[ext]",
                 }
             }
         },
