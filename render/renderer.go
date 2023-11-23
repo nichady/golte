@@ -54,16 +54,16 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 }
 
 // Render renders a slice of entries into the writer
-func (g *Renderer) Render(w io.Writer, components []Entry) error {
-	g.mtx.Lock()
-	result, err := g.render(g.assetsPath, components)
-	g.mtx.Unlock()
+func (r *Renderer) Render(w io.Writer, components []Entry) error {
+	r.mtx.Lock()
+	result, err := r.render(r.assetsPath, components)
+	r.mtx.Unlock()
 
 	if err != nil {
-		return err
+		return r.tryConvToRenderError(err)
 	}
 
-	return g.template.Execute(w, result)
+	return r.template.Execute(w, result)
 }
 
 type result struct {
@@ -81,32 +81,6 @@ type Entry struct {
 	Props map[string]any
 }
 
-func (g *Renderer) ToRenderError(err error) (RenderError, bool) {
-	ex, ok := err.(*goja.Exception)
-	if !ok {
-		return RenderError{}, false
-	}
-
-	g.mtx.Lock()
-	defer g.mtx.Unlock()
-
-	if !g.isRenderError(ex.Value()) {
-		return RenderError{}, false
-	}
-
-	var rerr RenderError
-	if g.vm.ExportTo(ex.Value(), &rerr) != nil {
-		return RenderError{}, false
-	}
-
-	return rerr, true
-}
-
 type exports struct {
 	IsRenderError func(goja.Value) bool
-}
-
-type RenderError struct {
-	Cause goja.Value
-	Index int
 }

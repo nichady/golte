@@ -14,11 +14,10 @@ type Options struct {
 	// AssetsPath is the absolute path from which asset files will be served.
 	AssetsPath string
 
-	// RenderErrorHandler is the function called whenever there is an error in rendering.
+	// HandleRenderError is the function called whenever there is an error in rendering.
 	// This will be called before rendering error pages.
 	// It is recommended to put things like logging here.
-	// index is the index of the entry in entries which caused the error
-	RenderErrorHandler func(url string, entries []render.Entry, index int, err error)
+	HandleRenderError func(*http.Request, []render.Entry, error)
 }
 
 // From takes a filesystem and returns two things: a middleware and an http handler.
@@ -41,8 +40,8 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 		opts.AssetsPath = opts.AssetsPath + "/"
 	}
 
-	if opts.RenderErrorHandler == nil {
-		opts.RenderErrorHandler = func(string, []render.Entry, int, error) {}
+	if opts.HandleRenderError == nil {
+		opts.HandleRenderError = func(*http.Request, []render.Entry, error) {}
 	}
 
 	serverDir, err := fs.Sub(fsys, "server")
@@ -60,8 +59,8 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
-				Renderer:           renderer,
-				RenderErrorHandler: opts.RenderErrorHandler,
+				Renderer:          renderer,
+				HandleRenderError: opts.HandleRenderError,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -80,8 +79,7 @@ func Layout(component string) func(http.Handler) http.Handler {
 	}
 }
 
-// Page returns a handler that will render the specified component, along with
-// any other components added to the request's context.
+// Page returns a handler that will call RenderPage.
 // Use this when there are no props needed to render the component.
 // If complex logic and props are needed, instead use RenderPage.
 func Page(component string) http.HandlerFunc {
@@ -90,12 +88,13 @@ func Page(component string) http.HandlerFunc {
 	})
 }
 
-// Error is a middleware which sets the error page for the route.
+// Error is a middleware which calls SetError.
+// Use this when there are no props needed to render the component.
+// If complex logic and props are needed, instead use SetError.
 func Error(component string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			rctx := GetRenderContext(r)
-			rctx.ErrPage = component
+			SetError(r, component)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -115,6 +114,12 @@ func AddLayout(r *http.Request, component string, props map[string]any) {
 	})
 }
 
+// SetError sets the error page for the route.
+func SetError(r *http.Request, component string) {
+	rctx := GetRenderContext(r)
+	rctx.ErrPage = component
+}
+
 // RenderPage renders the specified component with props to the writer, along with
 // any other components added to the request's context.
 // The props must consist only of values that can be serialized as JSON.
@@ -126,15 +131,13 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 
 	err := rctx.Renderer.Render(w, entries)
 	if err != nil {
-		rerr, ok := rctx.Renderer.ToRenderError(err)
-		if ok {
-			rctx.RenderErrorHandler(r.URL.String(), entries, rerr.Index, err)
+		rctx.HandleRenderError(r, entries, err)
+		if rerr, ok := err.(*render.RenderError); ok {
 			rctx.Layouts = rctx.Layouts[:rerr.Index]
-			RenderErrorPage(w, r, rerr.Cause.String(), http.StatusInternalServerError)
+			RenderErrorPage(w, r, err.Error(), http.StatusInternalServerError)
 		} else {
 			// this shouldn't happen
-			rctx.RenderErrorHandler(r.URL.String(), entries, -1, err)
-			RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
+			renderFallback(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
@@ -146,15 +149,13 @@ func Render(w http.ResponseWriter, r *http.Request) {
 
 	err := rctx.Renderer.Render(w, rctx.Layouts)
 	if err != nil {
-		rerr, ok := rctx.Renderer.ToRenderError(err)
-		if ok {
-			rctx.RenderErrorHandler(r.URL.String(), rctx.Layouts, rerr.Index, err)
+		rctx.HandleRenderError(r, rctx.Layouts, err)
+		if rerr, ok := err.(*render.RenderError); ok {
 			rctx.Layouts = rctx.Layouts[:rerr.Index]
-			RenderErrorPage(w, r, rerr.Cause.String(), http.StatusInternalServerError)
+			RenderErrorPage(w, r, err.Error(), http.StatusInternalServerError)
 		} else {
 			// this shouldn't happen
-			rctx.RenderErrorHandler(r.URL.String(), rctx.Layouts, -1, err)
-			RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
+			renderFallback(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	}
 }
@@ -162,6 +163,8 @@ func Render(w http.ResponseWriter, r *http.Request) {
 // RenderErrorPage renders the current error page.
 // If an error occurs while rendering the error page, the fallback error page is used instead.
 func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, status int) {
+	w.WriteHeader(status)
+
 	rctx := GetRenderContext(r)
 	page := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
 		"message": message,
@@ -171,21 +174,18 @@ func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, sta
 
 	err := rctx.Renderer.Render(w, entries)
 	if err != nil {
-		rerr, ok := rctx.Renderer.ToRenderError(err)
-		if !ok {
-			rctx.RenderErrorHandler(r.URL.String(), entries, rerr.Index, err)
-		} else {
-			rctx.RenderErrorHandler(r.URL.String(), entries, -1, err)
-		}
-		RenderFallbackPage(w, r, err.Error(), http.StatusInternalServerError)
+		rctx.HandleRenderError(r, entries, err)
+		renderFallback(w, r, err.Error(), -1)
 	}
 }
 
-// RenderFallbackPage renders the fallback error page, an html template.
-func RenderFallbackPage(w http.ResponseWriter, r *http.Request, message string, status int) {
+// renderFallback renders the fallback error page, an html template.
+func renderFallback(w http.ResponseWriter, r *http.Request, message string, status int) {
 	// rctx := getRenderContext(r)
 	// TODO
 
-	w.WriteHeader(status)
+	if status != -1 {
+		w.WriteHeader(status)
+	}
 	io.WriteString(w, message)
 }

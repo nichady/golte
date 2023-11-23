@@ -1,10 +1,14 @@
 export class RenderError extends Error {
+
+    /**
+     * @param { any } err
+     * @param { number } index 
+     */
     constructor(err, index) {
         // goja doesn't support this constructor
-        // super("Render Error: ", { cause: err });
+        // super("RenderError: ", { cause: err });
 
-        super("RenderError")
-        this.cause = err;
+        super(err)
         this.index = index;
     }
 }
