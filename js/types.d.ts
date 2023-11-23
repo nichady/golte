@@ -4,6 +4,7 @@ export type Config = {
     template?: string;
     srcDir?: string,
     ignore?: string[],
+    appPath?: string;
     vite?: UserConfig;
     // TODO option for output dist folder
 }

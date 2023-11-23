@@ -5,15 +5,11 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"strings"
 
 	"github.com/nichady/golte/render"
 )
 
 type Options struct {
-	// AssetsPath is the absolute path from which asset files will be served.
-	AssetsPath string
-
 	// HandleRenderError is the function called whenever there is an error in rendering.
 	// This will be called before rendering error pages.
 	// It is recommended to put things like logging here.
@@ -28,21 +24,19 @@ type Options struct {
 // It will allow you to use Layout, AddLayout, Page, RenderPage, and Render.
 // It should be mounted on the route which you plan to serve your app (typically the root).
 
-// The http handler is a file server that will serve assets, such as js and css files.
-// It should typically be served on a subpath of your app rather than the root.
-// If you do choose to serve it on a subpath, make sure to set Options.AssetsPath as well.
+// The http handler is a file server that will serve JS, CSS, and other assets.
+// It should be served on the same path as what you set "appPath" to in golte.config.js.
 func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
-	if !strings.HasPrefix(opts.AssetsPath, "/") {
-		opts.AssetsPath = "/" + opts.AssetsPath
-	}
-
-	if !strings.HasSuffix(opts.AssetsPath, "/") {
-		opts.AssetsPath = opts.AssetsPath + "/"
-	}
-
 	if opts.HandleRenderError == nil {
 		opts.HandleRenderError = func(*http.Request, []render.Entry, error) {}
 	}
+
+	b, err := fs.ReadFile(fsys, "server/appPath")
+	if err != nil {
+		panic(err)
+	}
+
+	appPath := string(b)
 
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
@@ -54,7 +48,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 		panic(err)
 	}
 
-	renderer := render.New(serverDir, opts.AssetsPath)
+	renderer := render.New(serverDir, appPath)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +58,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
-	}, http.StripPrefix(opts.AssetsPath, fileServer(clientDir)).ServeHTTP
+	}, http.StripPrefix("/"+appPath+"/", fileServer(clientDir)).ServeHTTP
 }
 
 // Layout returns a middleware that will add the specified component to the context.

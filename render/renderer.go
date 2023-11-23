@@ -16,17 +16,18 @@ import (
 type Renderer struct {
 	template      *template.Template
 	vm            *goja.Runtime
-	assetsPath    string
-	render        func(assetsPath string, entries []Entry) (result, error)
+	appPath       string
+	render        func(appPath string, entries []Entry) (result, error)
 	isRenderError func(goja.Value) bool
 	mtx           sync.Mutex
 }
 
 // New constructs a new renderer from the given filesystem.
 // The filesystem should be the "server" subdirectory of the build
-// output from "npx golte". assetsPath should be the absolute path
-// from which asset files are expected to be served.
-func New(fsys fs.FS, assetsPath string) *Renderer {
+// output from "npx golte".
+// The second argument is the path where the JS, CSS,
+// and other assets are expected to be served.
+func New(fsys fs.FS, appPath string) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
@@ -49,14 +50,14 @@ func New(fsys fs.FS, assetsPath string) *Renderer {
 		vm:            vm,
 		render:        renderfile.Render,
 		isRenderError: exports.IsRenderError,
-		assetsPath:    assetsPath,
+		appPath:       appPath,
 	}
 }
 
 // Render renders a slice of entries into the writer
 func (r *Renderer) Render(w io.Writer, components []Entry) error {
 	r.mtx.Lock()
-	result, err := r.render(r.assetsPath, components)
+	result, err := r.render(r.appPath, components)
 	r.mtx.Unlock()
 
 	if err != nil {
@@ -72,7 +73,7 @@ type result struct {
 }
 
 type renderfile struct {
-	Render func(assetsPath string, entries []Entry) (result, error)
+	Render func(appPath string, entries []Entry) (result, error)
 }
 
 // Entry represents a component to be rendered, along with its props.

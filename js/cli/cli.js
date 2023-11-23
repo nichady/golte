@@ -20,7 +20,7 @@ import merge from "deepmerge";
  */
 
 async function main() {
-    const { templateFile, componentMap, viteConfig } = await extract(await resolveConfig());
+    const { templateFile, componentMap, viteConfig, appPath } = await extract(await resolveConfig());
 
     await mkdir(".golte/generated", { recursive: true });
     await copyFile("node_modules/golte/js/client/hydrate.js", ".golte/generated/hydrate.js"),
@@ -29,8 +29,9 @@ async function main() {
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
     await generateRenderfile(componentMap);
-    await buildServer(viteConfig);
+    await buildServer(viteConfig, appPath);
     await copyFile(templateFile, "dist/server/template.html");
+    await writeFile("dist/server/appPath", appPath);
 }
 
 /**
@@ -84,14 +85,16 @@ async function resolveConfig() {
  *  templateFile: string
  *  componentMap: Record<string, string>
  *  viteConfig: import("vite").UserConfig
+ *  appPath: string
  * }>}
  */
 async function extract(inputConfig) {
-    /** @type {Config} */
+    /** @type {Required<Config>} */
     const defaultConfig = {
         template: "web/app.html",
         srcDir: "web/",
         ignore: ["lib/"],
+        appPath: "_app",
         vite: {
             build: {
                 cssCodeSplit: true,
@@ -109,6 +112,9 @@ async function extract(inputConfig) {
 
     const config = merge(defaultConfig, inputConfig);
 
+    if (config.appPath.startsWith("/")) config.appPath = config.appPath.slice(1);
+    if (config.appPath.endsWith("/")) config.appPath = config.appPath.slice(0, -1);
+
     return {
         templateFile: config.template,
         componentMap: Object.fromEntries(
@@ -117,6 +123,7 @@ async function extract(inputConfig) {
             .map((path) => [relative(config.srcDir, path).replace(/\.svelte$/, ""), path])
         ),
         viteConfig: config.vite,
+        appPath: config.appPath,
     }
 }
 
@@ -150,7 +157,7 @@ async function buildClient(componentMap, viteConfig) {
                         return "entries/[name]-[hash].js"
                     },
                     chunkFileNames: "chunks/[name]-[hash].js",
-                    assetFileNames: "[ext]/[name]-[hash].[ext]",
+                    assetFileNames: "assets/[name]-[hash].[ext]",
                 }
             },
         },
@@ -200,8 +207,8 @@ async function generateRenderfile(componentMap) {
     renderfile += `
 const renderer = new Renderer(manifest);
 
-export function render(assetsPath, components) {
-    return renderer.render(assetsPath, components);
+export function render(appPath, components) {
+    return renderer.render(appPath, components);
 }\n`
 
     await mkdir(".golte/generated", { recursive: true });
@@ -224,8 +231,9 @@ function traverseCSS(clientManifest, component) {
 
 /**
  * @param {import("vite").UserConfig} viteConfig
+ * @param {string} appPath
  */
-async function buildServer(viteConfig) {
+async function buildServer(viteConfig, appPath) {
     /** @type {import("vite").UserConfig} */
     const config = {
         build: {
@@ -243,7 +251,7 @@ async function buildServer(viteConfig) {
                     format: "cjs",
                     entryFileNames: "[name].js",
                     chunkFileNames: "chunks/[name]-[hash].js",
-                    // assetFileNames: "[ext]/[name]-[hash].[ext]",
+                    assetFileNames: `${appPath}/assets/[name]-[hash].[ext]`,
                 }
             }
         },
