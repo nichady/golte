@@ -184,7 +184,7 @@ async function generateRenderfile(componentMap) {
         renderfile += `\t\tserver: component_${i},\n`;
         renderfile += `\t\tclient: "${component.file}",\n`;
         renderfile += `\t\tcss: [\n`;
-        for (const css of component.css ?? []) {
+        for (const css of traverseCSS(clientManifest, component)) {
             renderfile += `\t\t\t"${css}",\n`;
         }
         renderfile += `\t\t],\n`;
@@ -204,6 +204,20 @@ export function render(assetsPath, components) {
 
     await mkdir(".golte/generated", { recursive: true });
     await writeFile(".golte/generated/renderfile.js", renderfile)
+}
+
+function traverseCSS(clientManifest, component) {
+    const css = new Set(component.css);
+
+    for (const i of component.imports ?? []) {
+        if (!(i in clientManifest)) continue;
+        const component = clientManifest[i];
+        for (const c of traverseCSS(clientManifest, component)) {
+            css.add(c);
+        }
+    }
+
+    return css;
 }
 
 /**
