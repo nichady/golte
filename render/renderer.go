@@ -63,6 +63,7 @@ func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bo
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Vary", "Golte")
 
 		return r.template.Execute(w, result)
 	}
@@ -84,6 +85,7 @@ func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bo
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Vary", "Golte")
 
 	err := json.NewEncoder(w).Encode(resp)
 	if err != nil {
