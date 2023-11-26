@@ -23,15 +23,13 @@ async function main() {
     const { templateFile, componentMap, viteConfig, appPath } = await extract(await resolveConfig());
 
     await mkdir(".golte/generated", { recursive: true });
-    await copyFile("node_modules/golte/js/client/hydrate.js", ".golte/generated/hydrate.js"),
 
-    await buildClient(componentMap, viteConfig);
+    await buildClient(componentMap, viteConfig, appPath);
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
     await generateRenderfile(componentMap);
     await buildServer(viteConfig, appPath);
     await copyFile(templateFile, "dist/server/template.html");
-    await writeFile("dist/server/appPath", appPath);
 }
 
 /**
@@ -130,8 +128,9 @@ async function extract(inputConfig) {
 /**
  * @param {Record<string, string>} componentMap
  * @param {import("vite").UserConfig} viteConfig
+ * @param {string} appPath 
  */
-async function buildClient(componentMap, viteConfig) {
+async function buildClient(componentMap, viteConfig, appPath) {
     /** @type {import("vite").UserConfig} */
     const config = {
         build: {
@@ -145,19 +144,14 @@ async function buildClient(componentMap, viteConfig) {
                 // for some reason, vite sets this to false when using rollupOptions.input instead of lib.entry
                 preserveEntrySignatures: "exports-only",
                 input: [
-                    ".golte/generated/hydrate.js",
+                    "node_modules/golte/js/client/hydrate.js",
                     ...Object.values(componentMap),
                 ],
                 output: {
                     format: "es",
-                    entryFileNames: (chunk) => {
-                        if (relative(cwd(), chunk.facadeModuleId ?? "") === ".golte/generated/hydrate.js") {
-                            return "entries/hydrate.js";
-                        }
-                        return "entries/[name]-[hash].js"
-                    },
-                    chunkFileNames: "chunks/[name]-[hash].js",
-                    assetFileNames: "assets/[name]-[hash].[ext]",
+                    entryFileNames: `${appPath}/entries/[name]-[hash].js`,
+                    chunkFileNames: `${appPath}/chunks/[name]-[hash].js`,
+                    assetFileNames: `${appPath}/assets/[name]-[hash].[ext]`,
                 }
             },
         },
@@ -183,7 +177,7 @@ async function generateRenderfile(componentMap) {
     }
     renderfile += `\n`;
 
-    renderfile += `const manifest = {\n`;
+    renderfile += `export const manifest = {\n`;
     const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
     for (const i in idxComponentMap) {
         const [name, srcpath] = idxComponentMap[i];
@@ -207,8 +201,8 @@ async function generateRenderfile(componentMap) {
     renderfile += `
 const renderer = new Renderer(manifest);
 
-export function render(appPath, components) {
-    return renderer.render(appPath, components);
+export function render(components) {
+    return renderer.render("${clientManifest["node_modules/golte/js/client/hydrate.js"].file}", components);
 }\n`
 
     await mkdir(".golte/generated", { recursive: true });

@@ -1,8 +1,9 @@
 package render
 
 import (
-	"io"
+	"encoding/json"
 	"io/fs"
+	"net/http"
 	"sync"
 	"text/template"
 
@@ -16,8 +17,7 @@ import (
 type Renderer struct {
 	template      *template.Template
 	vm            *goja.Runtime
-	appPath       string
-	render        func(appPath string, entries []Entry) (result, error)
+	renderfile    renderfile
 	isRenderError func(goja.Value) bool
 	mtx           sync.Mutex
 }
@@ -27,7 +27,7 @@ type Renderer struct {
 // output from "npx golte".
 // The second argument is the path where the JS, CSS,
 // and other assets are expected to be served.
-func New(fsys fs.FS, appPath string) *Renderer {
+func New(fsys fs.FS) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
@@ -40,31 +40,65 @@ func New(fsys fs.FS, appPath string) *Renderer {
 	console.Enable(vm)
 
 	var renderfile renderfile
-	vm.ExportTo(require.Require(vm, "./renderfile.js"), &renderfile)
+	err := vm.ExportTo(require.Require(vm, "./renderfile.js"), &renderfile)
+	if err != nil {
+		panic(err)
+	}
 
 	var exports exports
-	vm.ExportTo(require.Require(vm, "./exports.js"), &exports)
+	err = vm.ExportTo(require.Require(vm, "./exports.js"), &exports)
+	if err != nil {
+		panic(err)
+	}
 
 	return &Renderer{
 		template:      tmpl,
 		vm:            vm,
-		render:        renderfile.Render,
+		renderfile:    renderfile,
 		isRenderError: exports.IsRenderError,
-		appPath:       appPath,
 	}
 }
 
 // Render renders a slice of entries into the writer
-func (r *Renderer) Render(w io.Writer, components []Entry) error {
-	r.mtx.Lock()
-	result, err := r.render(r.appPath, components)
-	r.mtx.Unlock()
+func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bool) error {
+	if !noreload {
+		r.mtx.Lock()
+		result, err := r.renderfile.Render(components)
+		r.mtx.Unlock()
 
-	if err != nil {
-		return r.tryConvToRenderError(err)
+		if err != nil {
+			return r.tryConvToRenderError(err)
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		return r.template.Execute(w, result)
 	}
 
-	return r.template.Execute(w, result)
+	var resp []responseEntry
+	for _, v := range components {
+		if v.Props == nil {
+			//	TODO move this logic elsewhere
+			v.Props = map[string]any{}
+		}
+
+		comp := r.renderfile.Manifest[v.Comp]
+
+		resp = append(resp, responseEntry{
+			File:  "/" + comp.Client,
+			Props: v.Props,
+			CSS:   comp.Css,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	err := json.NewEncoder(w).Encode(resp)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type result struct {
@@ -73,7 +107,11 @@ type result struct {
 }
 
 type renderfile struct {
-	Render func(appPath string, entries []Entry) (result, error)
+	Render   func(entries []Entry) (result, error)
+	Manifest map[string]struct {
+		Client string
+		Css    []string
+	}
 }
 
 // Entry represents a component to be rendered, along with its props.
@@ -84,4 +122,10 @@ type Entry struct {
 
 type exports struct {
 	IsRenderError func(goja.Value) bool
+}
+
+type responseEntry struct {
+	File  string
+	Props map[string]any
+	CSS   []string
 }

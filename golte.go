@@ -31,13 +31,6 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 		opts.HandleRenderError = func(*http.Request, []render.Entry, error) {}
 	}
 
-	b, err := fs.ReadFile(fsys, "server/appPath")
-	if err != nil {
-		panic(err)
-	}
-
-	appPath := string(b)
-
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
 		panic(err)
@@ -48,7 +41,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 		panic(err)
 	}
 
-	renderer := render.New(serverDir, appPath)
+	renderer := render.New(serverDir)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -58,7 +51,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
-	}, http.StripPrefix("/"+appPath+"/", fileServer(clientDir)).ServeHTTP
+	}, http.StripPrefix("/", fileServer(clientDir)).ServeHTTP
 }
 
 // Layout returns a middleware that will add the specified component to the context.
@@ -123,7 +116,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 	page := render.Entry{Comp: component, Props: props}
 	entries := append(rctx.Layouts, page)
 
-	err := rctx.Renderer.Render(w, entries)
+	err := rctx.Renderer.Render(w, entries, r.Header["Golte"] != nil)
 	if err != nil {
 		rctx.HandleRenderError(r, entries, err)
 		if rerr, ok := err.(*render.RenderError); ok {
@@ -141,7 +134,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 func Render(w http.ResponseWriter, r *http.Request) {
 	rctx := GetRenderContext(r)
 
-	err := rctx.Renderer.Render(w, rctx.Layouts)
+	err := rctx.Renderer.Render(w, rctx.Layouts, r.Header["Golte"] != nil)
 	if err != nil {
 		rctx.HandleRenderError(r, rctx.Layouts, err)
 		if rerr, ok := err.(*render.RenderError); ok {
@@ -166,7 +159,7 @@ func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, sta
 	}}
 	entries := append(rctx.Layouts, page)
 
-	err := rctx.Renderer.Render(w, entries)
+	err := rctx.Renderer.Render(w, entries, r.Header["Golte"] != nil)
 	if err != nil {
 		rctx.HandleRenderError(r, entries, err)
 		renderFallback(w, r, err.Error(), -1)

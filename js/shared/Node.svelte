@@ -6,7 +6,7 @@
 	export let nodes;
 	export let index;
 
-	const { comp, props } = nodes[index];
+	$: ({ comp, props } = nodes[index]);
 </script>
 
 <svelte:component this={comp} {...props}>
