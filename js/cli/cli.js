@@ -7,7 +7,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
 import { join, relative } from "node:path";
-import { copyFile, readFile, writeFile, mkdir, rename, unlink } from "node:fs/promises";
+import { copyFile, readFile, mkdir, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
@@ -22,13 +22,12 @@ import merge from "deepmerge";
 async function main() {
     const { templateFile, components, viteConfig, appPath } = await extract(await resolveConfig());
 
-    await mkdir(".golte/generated", { recursive: true });
-
     await buildClient(components, viteConfig, appPath);
-    await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
+    
+    const manifest = JSON.parse(await readFile("dist/client/manifest.json", "utf-8"));
+    await rm("dist/client/manifest.json")
 
-    await generateRenderfile(components);
-    await buildServer(viteConfig, appPath);
+    await buildServer(components, viteConfig, appPath, manifest);
     await copyFile(templateFile, "dist/server/template.html");
 }
 
@@ -73,7 +72,7 @@ async function resolveConfig() {
         const configFile = (await import(join(cwd(), tempFile))).default
         return configFile;
     } finally {
-        await unlink(tempFile);
+        await rm(tempFile);
     }
 }
 
@@ -165,55 +164,51 @@ async function buildClient(components, viteConfig, appPath) {
 }
 
 /**
- * @param {{ name: string, path: string}[]} components
+ * @param {{ name: string, path: string }[]} components 
+ * @returns string
  */
-async function generateRenderfile(components) {
-    let renderfile = "";
-
-    renderfile += `import { Renderer } from "golte/js/server";\n\n`;
-
+async function createImports(components) {
+    let imports = ``;
     for (const i in components) {
         const { path } = components[i];
-        renderfile += `import component_${i} from "../../${path}";\n`
+        imports += `import component_${i} from "${join(cwd(), path)}";\n`
     }
-    renderfile += `\n`;
-
-    renderfile += `export const manifest = {\n`;
-    const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
-    for (const i in components) {
-        const { name, path } = components[i];
-        const component = clientManifest[path];
-
-        renderfile += `\t"${name}": {\n`;
-        renderfile += `\t\tserver: component_${i},\n`;
-        renderfile += `\t\tclient: "${component.file}",\n`;
-        renderfile += `\t\tcss: [\n`;
-        for (const css of traverseCSS(clientManifest, component)) {
-            renderfile += `\t\t\t"${css}",\n`;
-        }
-        renderfile += `\t\t],\n`;
-        renderfile += `\t},\n`;
-    }
-    renderfile += `};\n`;
-
-    renderfile += `
-const renderer = new Renderer(manifest);
-
-export function render(components) {
-    return renderer.render("${clientManifest["node_modules/golte/js/client/hydrate.js"].file}", components);
-}\n`
-
-    await mkdir(".golte/generated", { recursive: true });
-    await writeFile(".golte/generated/renderfile.js", renderfile)
+    return imports;
 }
 
-function traverseCSS(clientManifest, component) {
+/**
+ * @param {{ name: string, path: string }[]} components 
+ * @param {any} manifestFile
+ * @returns string
+ */
+async function createManifest(components, manifestFile) {
+    let manifest = `{\n`;
+    for (const i in components) {
+        const { name, path } = components[i];
+        const component = manifestFile[path];
+
+        manifest += `"${name}": {\n`;
+        manifest += `server: component_${i},\n`;
+        manifest += `client: "${component.file}",\n`;
+        manifest += `css: [\n`;
+        for (const css of traverseCSS(manifestFile, component)) {
+            manifest += `"${css}",\n`;
+        }
+        manifest += `],\n`;
+        manifest += `},\n`;
+    }
+    manifest += `};\n`;
+
+    return manifest;
+}
+
+function traverseCSS(manifest, component) {
     const css = new Set(component.css);
 
     for (const i of component.imports ?? []) {
-        if (!(i in clientManifest)) continue;
-        const component = clientManifest[i];
-        for (const c of traverseCSS(clientManifest, component)) {
+        if (!(i in manifest)) continue;
+        const component = manifest[i];
+        for (const c of traverseCSS(manifest, component)) {
             css.add(c);
         }
     }
@@ -222,12 +217,19 @@ function traverseCSS(clientManifest, component) {
 }
 
 /**
+ * @param components {{ name: string, path: string }[]}
  * @param {import("vite").UserConfig} viteConfig
  * @param {string} appPath
+ * @param {any} manifest
  */
-async function buildServer(viteConfig, appPath) {
+async function buildServer(components, viteConfig, appPath, manifest) {
     /** @type {import("vite").UserConfig} */
     const config = {
+        define: {
+            golteImports: await createImports(components),
+            golteHydrate: `"${manifest["node_modules/golte/js/client/hydrate.js"].file}"`,
+            golteManifest: await createManifest(components, manifest),
+        },
         build: {
             ssr: true,
             outDir: "dist/server/",
@@ -236,8 +238,7 @@ async function buildServer(viteConfig, appPath) {
             // lib: {},
             rollupOptions: {
                 input: [
-                    ".golte/generated/renderfile.js",
-                    "node_modules/golte/js/server/exports.js",
+                    "node_modules/golte/js/server/render.js",
                 ],
                 output: {
                     format: "cjs",

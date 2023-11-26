@@ -15,11 +15,10 @@ import (
 // Renderer is a renderer for svelte components. It uses a *goja.Runtime underneath the hood
 // to run javascript.
 type Renderer struct {
-	template      *template.Template
-	vm            *goja.Runtime
-	renderfile    renderfile
-	isRenderError func(goja.Value) bool
-	mtx           sync.Mutex
+	template   *template.Template
+	vm         *goja.Runtime
+	renderfile renderfile
+	mtx        sync.Mutex
 }
 
 // New constructs a new renderer from the given filesystem.
@@ -40,22 +39,15 @@ func New(fsys fs.FS) *Renderer {
 	console.Enable(vm)
 
 	var renderfile renderfile
-	err := vm.ExportTo(require.Require(vm, "./renderfile.js"), &renderfile)
-	if err != nil {
-		panic(err)
-	}
-
-	var exports exports
-	err = vm.ExportTo(require.Require(vm, "./exports.js"), &exports)
+	err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
 	if err != nil {
 		panic(err)
 	}
 
 	return &Renderer{
-		template:      tmpl,
-		vm:            vm,
-		renderfile:    renderfile,
-		isRenderError: exports.IsRenderError,
+		template:   tmpl,
+		vm:         vm,
+		renderfile: renderfile,
 	}
 }
 
@@ -107,21 +99,18 @@ type result struct {
 }
 
 type renderfile struct {
-	Render   func(entries []Entry) (result, error)
 	Manifest map[string]struct {
 		Client string
 		Css    []string
 	}
+	Render        func(entries []Entry) (result, error)
+	IsRenderError func(goja.Value) bool
 }
 
 // Entry represents a component to be rendered, along with its props.
 type Entry struct {
 	Comp  string
 	Props map[string]any
-}
-
-type exports struct {
-	IsRenderError func(goja.Value) bool
 }
 
 type responseEntry struct {

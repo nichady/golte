@@ -16,7 +16,7 @@ func (r *Renderer) tryConvToRenderError(err error) error {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if !r.isRenderError(ex.Value()) {
+	if !r.renderfile.IsRenderError(ex.Value()) {
 		return errors.New("golte error (this shouldn't happen): " + ex.String())
 	}
 
