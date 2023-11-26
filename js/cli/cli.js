@@ -20,14 +20,14 @@ import merge from "deepmerge";
  */
 
 async function main() {
-    const { templateFile, componentMap, viteConfig, appPath } = await extract(await resolveConfig());
+    const { templateFile, components, viteConfig, appPath } = await extract(await resolveConfig());
 
     await mkdir(".golte/generated", { recursive: true });
 
-    await buildClient(componentMap, viteConfig, appPath);
+    await buildClient(components, viteConfig, appPath);
     await rename("dist/client/manifest.json", ".golte/generated/clientManifest.json");
 
-    await generateRenderfile(componentMap);
+    await generateRenderfile(components);
     await buildServer(viteConfig, appPath);
     await copyFile(templateFile, "dist/server/template.html");
 }
@@ -81,7 +81,7 @@ async function resolveConfig() {
  * @param {Config} inputConfig
  * @returns {Promise<{
  *  templateFile: string
- *  componentMap: Record<string, string>
+ *  components: { name: string, path: string }[]
  *  viteConfig: import("vite").UserConfig
  *  appPath: string
  * }>}
@@ -113,24 +113,27 @@ async function extract(inputConfig) {
     if (config.appPath.startsWith("/")) config.appPath = config.appPath.slice(1);
     if (config.appPath.endsWith("/")) config.appPath = config.appPath.slice(0, -1);
 
+    const ignore = config.ignore.map((path) => join(config.srcDir, path));
+    const paths = await glob([join(config.srcDir, "**/*.svelte")], { ignore });
+    const components = paths.map((path) => ({
+        name: relative(config.srcDir, path).replace(/\.svelte$/, ""),
+        path: path,
+    }));
+
     return {
         templateFile: config.template,
-        componentMap: Object.fromEntries(
-            // (await glob(["**/*.svelte"], { cwd: config.srcDir, ignore: config.ignore }))
-            (await glob([join(config.srcDir, "**/*.svelte")], { ignore: config.ignore.map((path) => join(config.srcDir, path)) }))
-            .map((path) => [relative(config.srcDir, path).replace(/\.svelte$/, ""), path])
-        ),
+        components: components,
         viteConfig: config.vite,
         appPath: config.appPath,
     }
 }
 
 /**
- * @param {Record<string, string>} componentMap
+ * @param {{ name: string, path: string }[]} components
  * @param {import("vite").UserConfig} viteConfig
  * @param {string} appPath 
  */
-async function buildClient(componentMap, viteConfig, appPath) {
+async function buildClient(components, viteConfig, appPath) {
     /** @type {import("vite").UserConfig} */
     const config = {
         build: {
@@ -145,7 +148,7 @@ async function buildClient(componentMap, viteConfig, appPath) {
                 preserveEntrySignatures: "exports-only",
                 input: [
                     "node_modules/golte/js/client/hydrate.js",
-                    ...Object.values(componentMap),
+                    ...components.map((c) => c.path),
                 ],
                 output: {
                     format: "es",
@@ -162,26 +165,24 @@ async function buildClient(componentMap, viteConfig, appPath) {
 }
 
 /**
- * @param {Record<string, string>} componentMap
+ * @param {{ name: string, path: string}[]} components
  */
-async function generateRenderfile(componentMap) {
-    const idxComponentMap = Object.entries(componentMap);
-
+async function generateRenderfile(components) {
     let renderfile = "";
 
     renderfile += `import { Renderer } from "golte/js/server";\n\n`;
 
-    for (const i in idxComponentMap) {
-        const [, srcpath] = idxComponentMap[i];
-        renderfile += `import component_${i} from "../../${srcpath}";\n`
+    for (const i in components) {
+        const { path } = components[i];
+        renderfile += `import component_${i} from "../../${path}";\n`
     }
     renderfile += `\n`;
 
     renderfile += `export const manifest = {\n`;
     const clientManifest = JSON.parse(await readFile(".golte/generated/clientManifest.json", "utf-8"));
-    for (const i in idxComponentMap) {
-        const [name, srcpath] = idxComponentMap[i];
-        const component = clientManifest[srcpath];
+    for (const i in components) {
+        const { name, path } = components[i];
+        const component = clientManifest[path];
 
         renderfile += `\t"${name}": {\n`;
         renderfile += `\t\tserver: component_${i},\n`;
@@ -192,9 +193,6 @@ async function generateRenderfile(componentMap) {
         }
         renderfile += `\t\t],\n`;
         renderfile += `\t},\n`;
-
-
-
     }
     renderfile += `};\n`;
 
