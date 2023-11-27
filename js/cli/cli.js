@@ -12,6 +12,7 @@ import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
 import merge from "deepmerge";
+import replace from '@rollup/plugin-replace';
 
 // TODO custom log output
 
@@ -24,8 +25,8 @@ async function main() {
 
     await buildClient(components, viteConfig, appPath);
     
-    const manifest = JSON.parse(await readFile("dist/client/manifest.json", "utf-8"));
-    await rm("dist/client/manifest.json")
+    const manifest = JSON.parse(await readFile("dist/client/.vite/manifest.json", "utf-8"));
+    await rm("dist/client/.vite/", { recursive: true });
 
     await buildServer(components, viteConfig, appPath, manifest);
     await copyFile(templateFile, "dist/server/template.html");
@@ -225,11 +226,14 @@ function traverseCSS(manifest, component) {
 async function buildServer(components, viteConfig, appPath, manifest) {
     /** @type {import("vite").UserConfig} */
     const config = {
-        define: {
-            golteImports: await createImports(components),
-            golteHydrate: `"${manifest["node_modules/golte/js/client/hydrate.js"].file}"`,
-            golteManifest: await createManifest(components, manifest),
-        },
+        plugins: [
+            // we can't use define because vite 5 no longer statically replaces
+            replace({
+                golteImports: await createImports(components),
+                golteHydrate: `"${manifest["node_modules/golte/js/client/hydrate.js"].file}"`,
+                golteManifest: await createManifest(components, manifest),
+            })
+        ],
         build: {
             ssr: true,
             outDir: "dist/server/",
@@ -246,7 +250,7 @@ async function buildServer(components, viteConfig, appPath, manifest) {
                     chunkFileNames: "chunks/[name]-[hash].js",
                     assetFileNames: `${appPath}/assets/[name]-[hash].[ext]`,
                 }
-            }
+            },
         },
         // appType: "custom",
     };
