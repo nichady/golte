@@ -3,13 +3,15 @@
 
     export let nodes;
 
+    const golteData = Symbol("golteData");
+
     async function onclick(e) {
         if (!(e.target instanceof HTMLAnchorElement)) return;
         if (e.target.origin !== location.origin) return;
         if (!e.target.hasAttribute("noreload")) return;
 
         e.preventDefault();
-        const json = e.target.golteData ?? await load(e.target.href);
+        const json = e.target[golteData] ?? await load(e.target.href);
         await update(json);
         history.pushState({ golte: json }, "", e.target.href);
     }
@@ -17,21 +19,21 @@
     async function onhover(e) {
         if (!(e.target instanceof HTMLAnchorElement)) return;
         if (e.target.origin !== location.origin) return;
-        if (e.target.golteData) return;
+        if (e.target[golteData]) return;
         if (e.target.getAttribute("noreload") !== "hover") return;
 
         const json = await load(e.target.href);
-        e.target.golteData = json;
+        e.target[golteData] = json;
     }
 
     async function ontap(e) {
         if (!(e.target instanceof HTMLAnchorElement)) return;
         if (e.target.origin !== location.origin) return;
-        if (e.target.golteData) return;
+        if (e.target[golteData]) return;
         if (e.target.getAttribute("noreload") !== "tap") return;
 
         const json = await load(e.target.href);
-        e.target.golteData = json;
+        e.target[golteData] = json;
     }
 
     async function onpopstate(e) {
