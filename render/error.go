@@ -27,7 +27,7 @@ func (r *Renderer) tryConvToRenderError(err error) error {
 }
 
 type RenderError struct {
-	Index      int
+	Index      int // Index is the index of the node which caused the error
 	StackTrace string
 }
 

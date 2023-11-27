@@ -51,7 +51,7 @@ func New(fsys fs.FS) *Renderer {
 	}
 }
 
-// Render renders a slice of entries into the writer
+// Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bool) error {
 	if !noreload {
 		r.mtx.Lock()
@@ -70,11 +70,6 @@ func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bo
 
 	var resp []responseEntry
 	for _, v := range components {
-		if v.Props == nil {
-			//	TODO move this logic elsewhere
-			v.Props = map[string]any{}
-		}
-
 		comp := r.renderfile.Manifest[v.Comp]
 
 		resp = append(resp, responseEntry{

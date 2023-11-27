@@ -2,7 +2,6 @@ package golte
 
 import (
 	"context"
-	"io"
 	"io/fs"
 	"net/http"
 
@@ -54,7 +53,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 	}, http.StripPrefix("/", fileServer(clientDir)).ServeHTTP
 }
 
-// Layout returns a middleware that will add the specified component to the context.
+// Layout returns a middleware that calls AddLayout.
 // Use this when there are no props needed to render the component.
 // If complex logic and props are needed, instead use AddLayout.
 func Layout(component string) func(http.Handler) http.Handler {
@@ -66,16 +65,7 @@ func Layout(component string) func(http.Handler) http.Handler {
 	}
 }
 
-// Page returns a handler that will call RenderPage.
-// Use this when there are no props needed to render the component.
-// If complex logic and props are needed, instead use RenderPage.
-func Page(component string) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		RenderPage(w, r, component, nil)
-	})
-}
-
-// Error is a middleware which calls SetError.
+// Error returns a middleware that calls SetError.
 // Use this when there are no props needed to render the component.
 // If complex logic and props are needed, instead use SetError.
 func Error(component string) func(http.Handler) http.Handler {
@@ -87,92 +77,44 @@ func Error(component string) func(http.Handler) http.Handler {
 	}
 }
 
-// AddLayout adds the specified component with props to the request's context.
+// Page returns a handler that calls RenderPage.
+// Use this when there are no props needed to render the component.
+// If complex logic and props are needed, instead use RenderPage.
+func Page(component string) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		RenderPage(w, r, component, nil)
+	})
+}
+
+// AddLayout appends the component to the request.
 // The props must consist only of values that can be serialized as JSON.
 func AddLayout(r *http.Request, component string, props map[string]any) {
-	if props == nil {
-		props = map[string]any{}
-	}
-
 	rctx := GetRenderContext(r)
-	rctx.Layouts = append(rctx.Layouts, render.Entry{
+	rctx.Components = append(rctx.Components, render.Entry{
 		Comp:  component,
 		Props: props,
 	})
 }
 
-// SetError sets the error page for the route.
+// SetError sets the error page for the request.
 func SetError(r *http.Request, component string) {
-	rctx := GetRenderContext(r)
-	rctx.ErrPage = component
+	GetRenderContext(r).ErrPage = component
 }
 
-// RenderPage renders the specified component with props to the writer, along with
-// any other components added to the request's context.
+// RenderPage renders the specified component along with any layouts.
 // The props must consist only of values that can be serialized as JSON.
 // If an error occurs in rendering, it will render the current error page.
 func RenderPage(w http.ResponseWriter, r *http.Request, component string, props map[string]any) {
 	rctx := GetRenderContext(r)
-	page := render.Entry{Comp: component, Props: props}
-	entries := append(rctx.Layouts, page)
-
-	err := rctx.Renderer.Render(w, entries, r.Header["Golte"] != nil)
-	if err != nil {
-		rctx.HandleRenderError(r, entries, err)
-		if rerr, ok := err.(*render.RenderError); ok {
-			rctx.Layouts = rctx.Layouts[:rerr.Index]
-			RenderErrorPage(w, r, err.Error(), http.StatusInternalServerError)
-		} else {
-			// this shouldn't happen
-			renderFallback(w, r, err.Error(), http.StatusInternalServerError)
-		}
-	}
+	rctx.Components = append(rctx.Components, render.Entry{
+		Comp:  component,
+		Props: props,
+	})
+	rctx.Render(w)
 }
 
-// Render renders all the components in the request's context to the writer.
-// If an error occurs in rendering, it will render the current error page.
-func Render(w http.ResponseWriter, r *http.Request) {
-	rctx := GetRenderContext(r)
-
-	err := rctx.Renderer.Render(w, rctx.Layouts, r.Header["Golte"] != nil)
-	if err != nil {
-		rctx.HandleRenderError(r, rctx.Layouts, err)
-		if rerr, ok := err.(*render.RenderError); ok {
-			rctx.Layouts = rctx.Layouts[:rerr.Index]
-			RenderErrorPage(w, r, err.Error(), http.StatusInternalServerError)
-		} else {
-			// this shouldn't happen
-			renderFallback(w, r, err.Error(), http.StatusInternalServerError)
-		}
-	}
-}
-
-// RenderErrorPage renders the current error page.
-// If an error occurs while rendering the error page, the fallback error page is used instead.
+// RenderErrorPage renders the current error page along with layouts..
+// It will also write the status code to the header.
 func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, status int) {
-	w.WriteHeader(status)
-
-	rctx := GetRenderContext(r)
-	page := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
-		"message": message,
-		"code":    status,
-	}}
-	entries := append(rctx.Layouts, page)
-
-	err := rctx.Renderer.Render(w, entries, r.Header["Golte"] != nil)
-	if err != nil {
-		rctx.HandleRenderError(r, entries, err)
-		renderFallback(w, r, err.Error(), -1)
-	}
-}
-
-// renderFallback renders the fallback error page, an html template.
-func renderFallback(w http.ResponseWriter, r *http.Request, message string, status int) {
-	// rctx := getRenderContext(r)
-	// TODO
-
-	if status != -1 {
-		w.WriteHeader(status)
-	}
-	io.WriteString(w, message)
+	GetRenderContext(r).RenderErrorPage(w, message, status)
 }

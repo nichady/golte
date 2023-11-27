@@ -15,10 +15,12 @@ const hydrate = golteHydrate;
 export const manifest = golteManifest;
 
 /**
- * @param {{ comp: string, props: {} }[]} entries
+ * @param {{ comp: string, props: {} }[]} [entries=[]]
  * @returns {{ head: string, body: string }}
  */
 export function render(entries) {
+    entries ??= []; // must check for both undefined and null
+
     const serverNodes = [];
     const clientNodes = [];
     const stylesheets = new Set();
