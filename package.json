@@ -29,5 +29,8 @@
   "types": "./js/types.d.ts",
   "files": [
     "js"
-  ]
+  ],
+  "exports": {
+    ".": "./js/public/index.js"
+  }
 }

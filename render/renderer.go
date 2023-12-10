@@ -10,6 +10,7 @@ import (
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
+	"github.com/dop251/goja_nodejs/url"
 )
 
 // Renderer is a renderer for svelte components. It uses a *goja.Runtime underneath the hood
@@ -37,6 +38,7 @@ func New(fsys fs.FS) *Renderer {
 	}).Enable(vm)
 
 	console.Enable(vm)
+	url.Enable(vm)
 
 	var renderfile renderfile
 	err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
@@ -52,10 +54,10 @@ func New(fsys fs.FS) *Renderer {
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bool) error {
+func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bool, scdata SvelteContextData) error {
 	if !noreload {
 		r.mtx.Lock()
-		result, err := r.renderfile.Render(components)
+		result, err := r.renderfile.Render(components, scdata)
 		r.mtx.Unlock()
 
 		if err != nil {
@@ -100,7 +102,7 @@ type renderfile struct {
 		Client string
 		Css    []string
 	}
-	Render        func(entries []Entry) (result, error)
+	Render        func([]Entry, SvelteContextData) (result, error)
 	IsRenderError func(goja.Value) bool
 }
 
@@ -108,6 +110,10 @@ type renderfile struct {
 type Entry struct {
 	Comp  string
 	Props map[string]any
+}
+
+type SvelteContextData struct {
+	URL string
 }
 
 type responseEntry struct {

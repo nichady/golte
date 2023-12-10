@@ -1,7 +1,7 @@
 // @ts-check
 
-import Root from "golte/js/shared/Root.svelte";
-import { RenderError } from "golte/js/shared/renderError.js";
+import Root from "../shared/Root.svelte";
+import { RenderError } from "../shared/renderError.js";
 
 // these variables will be set by vite
 
@@ -15,12 +15,10 @@ const hydrate = golteHydrate;
 export const manifest = golteManifest;
 
 /**
- * @param {{ comp: string, props: {} }[]} [entries=[]]
+ * @param {{ comp: string, props: {} }[]} entries
  * @returns {{ head: string, body: string }}
  */
-export function render(entries) {
-    entries ??= []; // must check for both undefined and null
-
+export function render(entries, contextData) {
     const serverNodes = [];
     const clientNodes = [];
     const stylesheets = new Set();
@@ -34,7 +32,7 @@ export function render(entries) {
         }
     }
 
-    let { html, head } = Root.render({ nodes: serverNodes });
+    let { html, head } = Root.render({ nodes: serverNodes, contextData });
 
     for (const path of stylesheets) {
         head += `\n<link href="/${path}" rel="stylesheet">`;
@@ -45,7 +43,7 @@ export function render(entries) {
             (async function () {
                 const target = document.currentScript.parentElement;
                 const { hydrate } = await import("/${hydrate}");
-                await hydrate(target, ${JSON.stringify(clientNodes)});
+                await hydrate(target, ${JSON.stringify(clientNodes)}, ${JSON.stringify(contextData)});
             })();
         </script>
     `

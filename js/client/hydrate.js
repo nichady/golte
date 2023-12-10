@@ -1,8 +1,8 @@
 // @ts-check
 
-import Root from "golte/js/shared/Root.svelte";
+import Root from "../shared/Root.svelte";
 
-export async function hydrate(target, nodes) {
+export async function hydrate(target, nodes, contextData) {
     nodes = await Promise.all(nodes.map(async (n) => ({
         comp: (await import(n.comp)).default,
         props: n.props,
@@ -10,7 +10,7 @@ export async function hydrate(target, nodes) {
 
     new Root({
         target: target,
-        props: { nodes },
+        props: { nodes, contextData },
         hydrate: true,
     });
 }

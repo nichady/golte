@@ -44,9 +44,17 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			scheme := "http"
+			if r.TLS != nil {
+				scheme += "s"
+			}
+
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
 				Renderer:          renderer,
 				HandleRenderError: opts.HandleRenderError,
+				scdata: render.SvelteContextData{
+					URL: scheme + "://" + r.Host + r.URL.String(),
+				},
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
