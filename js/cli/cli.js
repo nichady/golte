@@ -7,7 +7,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
 import { join, relative } from "node:path";
-import { copyFile, readFile, mkdir, rename, rm } from "node:fs/promises";
+import { readFile, rename, rm, readdir, lstat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
@@ -23,13 +23,15 @@ import replace from '@rollup/plugin-replace';
 async function main() {
     const { templateFile, components, viteConfig, appPath } = await extract(await resolveConfig());
 
-    await buildClient(components, viteConfig, appPath);
-    
+    await buildClient(components, viteConfig, appPath, templateFile);
+
     const manifest = JSON.parse(await readFile("dist/client/.vite/manifest.json", "utf-8"));
     await rm("dist/client/.vite/", { recursive: true });
 
     await buildServer(components, viteConfig, appPath, manifest);
-    await copyFile(templateFile, "dist/server/template.html");
+
+    await rename(join("dist/client", templateFile), "dist/server/template.html");
+    await clean("dist/client");
 }
 
 /**
@@ -131,9 +133,10 @@ async function extract(inputConfig) {
 /**
  * @param {{ name: string, path: string }[]} components
  * @param {import("vite").UserConfig} viteConfig
- * @param {string} appPath 
+ * @param {string} appPath
+ * @param {string} templateFile 
  */
-async function buildClient(components, viteConfig, appPath) {
+async function buildClient(components, viteConfig, appPath, templateFile) {
     /** @type {import("vite").UserConfig} */
     const config = {
         build: {
@@ -147,6 +150,7 @@ async function buildClient(components, viteConfig, appPath) {
                 // for some reason, vite sets this to false when using rollupOptions.input instead of lib.entry
                 preserveEntrySignatures: "exports-only",
                 input: [
+                    templateFile,
                     "node_modules/golte/js/client/hydrate.js",
                     ...components.map((c) => c.path),
                 ],
@@ -256,6 +260,23 @@ async function buildServer(components, viteConfig, appPath, manifest) {
     };
     
     await build(merge(viteConfig, config));
+}
+
+/**
+ * Removes all empty directories in a given directory
+ * @param {string} path
+ */
+async function clean(path) {
+    for (let item of await readdir(path)) {
+        item = join(path, item);
+        const stat = await lstat(item);
+        if (!stat.isDirectory()) continue;
+
+        await clean(item);
+        if ((await readdir(item)).length === 0) {
+            rm(item, { recursive: true });
+        };
+    }
 }
 
 await main();
