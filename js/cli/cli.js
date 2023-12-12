@@ -7,7 +7,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
 import { join, relative } from "node:path";
-import { readFile, rename, rm, readdir, lstat } from "node:fs/promises";
+import { readFile, rename, rm, readdir, lstat, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
@@ -21,9 +21,10 @@ import replace from '@rollup/plugin-replace';
  */
 
 async function main() {
-    const { templateFile, components, viteConfig, appPath } = await extract(await resolveConfig());
+    const { templateFile, components, viteConfig, appPath, staticDir } = await extract(await resolveConfig());
 
     await buildClient(components, viteConfig, appPath, templateFile);
+    await cp(staticDir, join("dist/client/", appPath), { recursive: true });
 
     const manifest = JSON.parse(await readFile("dist/client/.vite/manifest.json", "utf-8"));
     await rm("dist/client/.vite/", { recursive: true });
@@ -86,6 +87,7 @@ async function resolveConfig() {
  *  components: { name: string, path: string }[]
  *  viteConfig: import("vite").UserConfig
  *  appPath: string
+ *  staticDir: string
  * }>}
  */
 async function extract(inputConfig) {
@@ -93,6 +95,7 @@ async function extract(inputConfig) {
     const defaultConfig = {
         template: "web/app.html",
         srcDir: "web/",
+        staticDir: "web/static/",
         ignore: ["lib/"],
         appPath: "_app",
         vite: {
@@ -127,6 +130,7 @@ async function extract(inputConfig) {
         components: components,
         viteConfig: config.vite,
         appPath: config.appPath,
+        staticDir: config.staticDir,
     }
 }
 
