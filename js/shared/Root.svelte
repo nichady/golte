@@ -1,7 +1,7 @@
 <script>
     import { readonly, writable } from "svelte/store";
     import { Node } from "./node-wrapper.js";
-    import { setContext } from "svelte";
+    import { onMount, setContext } from "svelte";
     import { golteContextKey, golteAnchorKey } from "./keys.js"
 
     export let nodes;
@@ -42,6 +42,15 @@
         const json = await load(e.target.href);
         e.target[golteAnchorKey] = json;
     }
+
+    onMount(async () => {
+        const anchors = document.querySelectorAll(`a[noreload="mount"]`);
+        for (const a of anchors) {
+            if (a.origin !== location.origin) return;
+            const json = await load(a.href);
+            a[golteAnchorKey] = json;
+        }
+    });
 
     async function onpopstate(e) {
         if (!e.state || !e.state.golte) return
