@@ -12,22 +12,22 @@ golteImports;
 const hydrate = golteHydrate;
 
 // @ts-ignore
-export const manifest = golteManifest;
+export const Manifest = golteManifest;
 
 /**
- * @param {{ comp: string, props: {} }[]} entries
- * @returns {{ head: string, body: string }}
+ * @param {{ Comp: string, Props: {} }[]} entries
+ * @returns {{ Head: string, Body: string }}
  */
-export function render(entries, contextData) {
+export function Render(entries, contextData) {
     const serverNodes = [];
     const clientNodes = [];
     const stylesheets = new Set();
 
     for (const e of entries) {
-        const c = manifest[e.comp];
-        serverNodes.push({ comp: c.server, props: e.props });
-        clientNodes.push({ comp: `/${c.client}`, props: e.props });
-        for (const path of c.css) {
+        const c = Manifest[e.Comp];
+        serverNodes.push({ comp: c.server, props: e.Props });
+        clientNodes.push({ comp: `/${c.Client}`, props: e.Props });
+        for (const path of c.CSS) {
             stylesheets.add(path);
         }
     }
@@ -49,11 +49,11 @@ export function render(entries, contextData) {
     `
 
     return {
-        head: head,
-        body: html,
+        Head: head,
+        Body: html,
     }
 }
 
-export function isRenderError(err) {
+export function IsRenderError(err) {
     return err instanceof RenderError;
 }

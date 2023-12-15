@@ -7,7 +7,7 @@
     export let nodes;
     export let contextData;
 
-    const url = writable(new URL(contextData.uRL));
+    const url = writable(new URL(contextData.URL));
     setContext(golteContextKey, {
         url: readonly(url),
     });

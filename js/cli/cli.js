@@ -198,8 +198,8 @@ async function createManifest(components, manifestFile) {
 
         manifest += `"${name}": {\n`;
         manifest += `server: component_${i},\n`;
-        manifest += `client: "${component.file}",\n`;
-        manifest += `css: [\n`;
+        manifest += `Client: "${component.file}",\n`;
+        manifest += `CSS: [\n`;
         for (const css of traverseCSS(manifestFile, component)) {
             manifest += `"${css}",\n`;
         }

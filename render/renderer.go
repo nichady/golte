@@ -31,7 +31,7 @@ func New(fsys fs.FS) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
-	vm.SetFieldNameMapper(goja.UncapFieldNameMapper())
+	vm.SetFieldNameMapper(fieldMapper{"json"})
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
 		return fs.ReadFile(fsys, path)
@@ -77,7 +77,7 @@ func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bo
 		resp = append(resp, responseEntry{
 			File:  "/" + comp.Client,
 			Props: v.Props,
-			CSS:   comp.Css,
+			CSS:   comp.CSS,
 		})
 	}
 
@@ -100,7 +100,7 @@ type result struct {
 type renderfile struct {
 	Manifest map[string]struct {
 		Client string
-		Css    []string
+		CSS    []string
 	}
 	Render        func([]Entry, SvelteContextData) (result, error)
 	IsRenderError func(goja.Value) bool
