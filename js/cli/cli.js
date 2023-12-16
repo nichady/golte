@@ -21,18 +21,18 @@ import replace from '@rollup/plugin-replace';
  */
 
 async function main() {
-    const { templateFile, components, viteConfig, appPath, staticDir } = await extract(await resolveConfig());
+    const { templateFile, components, viteConfig, appPath, staticDir, outDir } = await extract(await resolveConfig());
 
-    await buildClient(components, viteConfig, appPath, templateFile);
-    await cp(staticDir, join("dist/client/", appPath), { recursive: true });
+    await buildClient(components, viteConfig, appPath, templateFile, outDir);
+    await cp(staticDir, join(outDir, "client/", appPath), { recursive: true });
 
-    const manifest = JSON.parse(await readFile("dist/client/.vite/manifest.json", "utf-8"));
-    await rm("dist/client/.vite/", { recursive: true });
+    const manifest = JSON.parse(await readFile(join(outDir, "client/.vite/manifest.json"), "utf-8"));
+    await rm(join(outDir, "/client/.vite/"), { recursive: true });
 
-    await buildServer(components, viteConfig, appPath, manifest);
+    await buildServer(components, viteConfig, appPath, manifest, outDir);
 
-    await rename(join("dist/client", templateFile), "dist/server/template.html");
-    await clean("dist/client");
+    await rename(join(outDir, "/client", templateFile), join(outDir, "/server/template.html"));
+    await clean(join(outDir, "/client"));
 }
 
 /**
@@ -88,6 +88,7 @@ async function resolveConfig() {
  *  viteConfig: import("vite").UserConfig
  *  appPath: string
  *  staticDir: string
+ *  outDir: string
  * }>}
  */
 async function extract(inputConfig) {
@@ -95,6 +96,7 @@ async function extract(inputConfig) {
     const defaultConfig = {
         template: "web/app.html",
         srcDir: "web/",
+        outDir: "dist/",
         staticDir: "web/static/",
         ignore: ["lib/"],
         appPath: "_app",
@@ -131,6 +133,7 @@ async function extract(inputConfig) {
         viteConfig: config.vite,
         appPath: config.appPath,
         staticDir: config.staticDir,
+        outDir: config.outDir,
     }
 }
 
@@ -139,13 +142,14 @@ async function extract(inputConfig) {
  * @param {import("vite").UserConfig} viteConfig
  * @param {string} appPath
  * @param {string} templateFile 
+ * @param {string} outDir
  */
-async function buildClient(components, viteConfig, appPath, templateFile) {
+async function buildClient(components, viteConfig, appPath, templateFile, outDir) {
     /** @type {import("vite").UserConfig} */
     const config = {
         build: {
             ssr: false,
-            outDir: "dist/client/",
+            outDir: join(outDir, "client"),
             minify: false,
             manifest: true,
             // https://github.com/vitejs/vite/issues/4454
@@ -230,8 +234,9 @@ function traverseCSS(manifest, component) {
  * @param {import("vite").UserConfig} viteConfig
  * @param {string} appPath
  * @param {any} manifest
+ * @param {string} outDir
  */
-async function buildServer(components, viteConfig, appPath, manifest) {
+async function buildServer(components, viteConfig, appPath, manifest, outDir) {
     /** @type {import("vite").UserConfig} */
     const config = {
         plugins: [
@@ -244,7 +249,7 @@ async function buildServer(components, viteConfig, appPath, manifest) {
         ],
         build: {
             ssr: true,
-            outDir: "dist/server/",
+            outDir: join(outDir, "server/"),
             minify: false,
             // https://github.com/vitejs/vite/issues/4454
             // lib: {},
