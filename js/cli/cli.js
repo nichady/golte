@@ -6,7 +6,7 @@ import { build } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
-import { join, relative } from "node:path";
+import path, { join, relative } from "node:path";
 import { readFile, rename, rm, readdir, lstat, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
@@ -19,6 +19,10 @@ import replace from '@rollup/plugin-replace';
 /**
  * @typedef {import("../types").Config} Config
  */
+
+function toPosix(p) {
+    return p.split(path.sep).join(path.posix.sep);
+}
 
 async function main() {
     const { templateFile, components, viteConfig, appPath, staticDir, outDir } = await extract(await resolveConfig());
@@ -72,8 +76,9 @@ async function resolveConfig() {
     });
 
     try {
+        // file:// is necessary for windows
         /** @type {Config} */
-        const configFile = (await import(join(cwd(), tempFile))).default
+        const configFile = (await import("file://" + join(cwd(), tempFile))).default
         return configFile;
     } finally {
         await rm(tempFile);
@@ -121,7 +126,7 @@ async function extract(inputConfig) {
     if (config.appPath.endsWith("/")) config.appPath = config.appPath.slice(0, -1);
 
     const ignore = config.ignore.map((path) => join(config.srcDir, path));
-    const paths = await glob([join(config.srcDir, "**/*.svelte")], { ignore });
+    const paths = await glob(toPosix(join(config.srcDir, "**/*.svelte")), { ignore });
     const components = paths.map((path) => ({
         name: relative(config.srcDir, path).replace(/\.svelte$/, ""),
         path: path,
@@ -184,7 +189,7 @@ async function createImports(components) {
     let imports = ``;
     for (const i in components) {
         const { path } = components[i];
-        imports += `import component_${i} from "${join(cwd(), path)}";\n`
+        imports += `import component_${i} from "${toPosix(join(cwd(), path))}";\n`
     }
     return imports;
 }
@@ -200,7 +205,7 @@ async function createManifest(components, manifestFile) {
         const { name, path } = components[i];
         const component = manifestFile[path];
 
-        manifest += `"${name}": {\n`;
+        manifest += `"${toPosix(name)}": {\n`;
         manifest += `server: component_${i},\n`;
         manifest += `Client: "${component.file}",\n`;
         manifest += `CSS: [\n`;
