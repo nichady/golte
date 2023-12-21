@@ -69,7 +69,7 @@
         const resp = await fetch(href, { headers });
         const json = await resp.json();
 
-        for (const entry of json.Entries) {
+        for (const entry of [...json.Entries, json.ErrPage]) {
             // preload js
             import(entry.File);
 
@@ -82,8 +82,6 @@
                 document.head.appendChild(link);
             }
         }
-
-        import(json.ErrPage);
         
         return json;
     }
@@ -95,7 +93,7 @@
         const promises = json.Entries.map(async (entry) => ({
             comp: (await import(entry.File)).default,
             props: entry.Props,
-            errPage: (await import(json.ErrPage)).default,
+            errPage: (await import(json.ErrPage.File)).default,
         }));
         
         $url = new URL(u);

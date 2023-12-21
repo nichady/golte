@@ -1,22 +1,31 @@
-// This file is a wrapper for Node.svelte that adds functionality dealing with errors during ssr.
-// When an error is thrown during rendering, it catches it and instead throws a wrapped error.
-// This wrapped error contains the index of the node, which is useful for telling which node is
-// responsible for the error when rendering multiple nested layouts.
+// This file is a wrapper for Node.svelte that adds functionality handling errors.
+// When an error is thrown during rendering, it catches it and instead
+// the specified error page is rendered instead. Works for both ssr and csr.
 
 //@ts-check
 
+import { getContext } from "svelte";
 import Original from "./Node.svelte";
-import { RenderError } from "./renderError.js"
+import { errorHandle } from "./keys";
 
-const wrapper = {
+const ssrWrapper = {
     $$render: (result, props, bindings, slots, context) => {
         try {
             return Original.$$render(result, props, bindings, slots, context);
         } catch (err) {
-            if (err instanceof RenderError) throw err;
-            throw new RenderError(err, props.index);
+            // if there is error, we need to let go code know
+            getContext(errorHandle)(err)
+            return props.node.content.errPage.$$render(result, { message: err.stack ?? err }, bindings, slots, context);
         }
     }
 };
 
-export const Node = import.meta.env.SSR ? wrapper : Original;
+function csrWrapper(options) {
+    try {
+        return new Original(options);
+    } catch (err) {
+        return new options.props.node.content.errPage({...options, props: { message: err.stack ?? err }});
+    }
+};
+
+export const Node = import.meta.env.SSR ? ssrWrapper : csrWrapper;

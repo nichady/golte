@@ -1,7 +1,7 @@
 // @ts-check
 
 import Root from "../shared/Root.svelte";
-import { RenderError } from "../shared/renderError.js";
+import { errorHandle } from "../shared/keys";
 
 // these variables will be set by vite
 
@@ -16,23 +16,32 @@ export const Manifest = golteManifest;
 
 /**
  * @param {{ Comp: string, Props: {} }[]} entries
- * @returns {{ Head: string, Body: string }}
+ * @returns {{ Head: string, Body: string, HasError: boolean }}
  */
-export function Render(entries, contextData) {
+export function Render(entries, contextData, errPage) {
     const serverNodes = [];
     const clientNodes = [];
     const stylesheets = new Set();
 
+    const err = Manifest[errPage];
+
     for (const e of entries) {
         const c = Manifest[e.Comp];
-        serverNodes.push({ comp: c.server, props: e.Props });
-        clientNodes.push({ comp: `/${c.Client}`, props: e.Props });
+        serverNodes.push({ comp: c.server, props: e.Props, errPage: err.server });
+        clientNodes.push({ comp: `/${c.Client}`, props: e.Props, errPage: `/${err.Client}` });
         for (const path of c.CSS) {
             stylesheets.add(path);
         }
     }
 
-    let { html, head } = Root.render({ nodes: serverNodes, contextData });
+    for (const path of err.CSS) {
+        stylesheets.add(path);
+    }
+
+    const context = new Map();
+    let error = undefined;
+    context.set(errorHandle, (e) => error = e )
+    let { html, head } = Root.render({ nodes: serverNodes, contextData }, { context });
 
     for (const path of stylesheets) {
         head += `\n<link href="/${path}" rel="stylesheet">`;
@@ -51,9 +60,6 @@ export function Render(entries, contextData) {
     return {
         Head: head,
         Body: html,
+        HasError: !!error,
     }
-}
-
-export function IsRenderError(err) {
-    return err instanceof RenderError;
 }

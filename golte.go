@@ -8,12 +8,7 @@ import (
 	"github.com/nichady/golte/render"
 )
 
-type Options struct {
-	// HandleRenderError is the function called whenever there is an error in rendering.
-	// This will be called before rendering error pages.
-	// It is recommended to put things like logging here.
-	HandleRenderError func(*http.Request, []render.Entry, error)
-}
+type Options struct{}
 
 // From takes a filesystem and returns two things: a middleware and an http handler.
 // The given filesystem should contain the build files of "npx golte".
@@ -26,10 +21,6 @@ type Options struct {
 // The http handler is a file server that will serve JS, CSS, and other assets.
 // It should be served on the same path as what you set "appPath" to in golte.config.js.
 func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
-	if opts.HandleRenderError == nil {
-		opts.HandleRenderError = func(*http.Request, []render.Entry, error) {}
-	}
-
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
 		panic(err)
@@ -50,8 +41,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 			}
 
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
-				Renderer:          renderer,
-				HandleRenderError: opts.HandleRenderError,
+				Renderer: renderer,
 				scdata: render.SvelteContextData{
 					URL: scheme + "://" + r.Host + r.URL.String(),
 				},
@@ -111,7 +101,6 @@ func SetError(r *http.Request, component string) {
 
 // RenderPage renders the specified component along with any layouts.
 // The props must consist only of values that can be serialized as JSON.
-// If an error occurs in rendering, it will render the current error page.
 func RenderPage(w http.ResponseWriter, r *http.Request, component string, props map[string]any) {
 	rctx := GetRenderContext(r)
 	rctx.Components = append(rctx.Components, render.Entry{
@@ -121,8 +110,8 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 	rctx.Render(w)
 }
 
-// RenderErrorPage renders the current error page along with layouts..
+// RenderError renders the current error page along with layouts..
 // It will also write the status code to the header.
-func RenderErrorPage(w http.ResponseWriter, r *http.Request, message string, status int) {
-	GetRenderContext(r).RenderErrorPage(w, message, status)
+func RenderError(w http.ResponseWriter, r *http.Request, message string, status int) {
+	GetRenderContext(r).RenderError(w, message, status)
 }

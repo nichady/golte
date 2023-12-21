@@ -63,11 +63,15 @@ type RenderData struct {
 func (r *Renderer) Render(w http.ResponseWriter, data RenderData, noreload bool) error {
 	if !noreload {
 		r.mtx.Lock()
-		result, err := r.renderfile.Render(data.Entries, data.SCData)
+		result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
 		r.mtx.Unlock()
 
 		if err != nil {
-			return r.tryConvToRenderError(err)
+			return err
+		}
+
+		if result.HasError {
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -86,24 +90,21 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, noreload bool)
 		})
 	}
 
-	resp.ErrPage = "/" + r.renderfile.Manifest[data.ErrPage].Client
-	// TODO css?
-	// TODO make css a single property on client response
+	resp.ErrPage = responseEntry{
+		File: "/" + r.renderfile.Manifest[data.ErrPage].Client,
+		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
+	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	err := json.NewEncoder(w).Encode(resp)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return json.NewEncoder(w).Encode(resp)
 }
 
 type result struct {
-	Head string
-	Body string
+	Head     string
+	Body     string
+	HasError bool
 }
 
 type renderfile struct {
@@ -111,8 +112,7 @@ type renderfile struct {
 		Client string
 		CSS    []string
 	}
-	Render        func([]Entry, SvelteContextData) (result, error)
-	IsRenderError func(goja.Value) bool
+	Render func([]Entry, SvelteContextData, string) (result, error)
 }
 
 // Entry represents a component to be rendered, along with its props.
@@ -127,7 +127,7 @@ type SvelteContextData struct {
 
 type csrResponse struct {
 	Entries []responseEntry
-	ErrPage string
+	ErrPage responseEntry
 }
 
 type responseEntry struct {

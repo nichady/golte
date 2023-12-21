@@ -1,7 +1,6 @@
 package golte
 
 import (
-	"io"
 	"net/http"
 
 	"github.com/nichady/golte/render"
@@ -12,10 +11,9 @@ type contextKey struct{}
 // RenderContext is used for lower level control over rendering.
 // It allows direct access to the renderer and component slice, and contains more detailed documentation.
 type RenderContext struct {
-	Renderer          *render.Renderer
-	HandleRenderError func(*http.Request, []render.Entry, error)
-	Components        []render.Entry
-	ErrPage           string
+	Renderer   *render.Renderer
+	Components []render.Entry
+	ErrPage    string
 
 	req    *http.Request
 	scdata render.SvelteContextData
@@ -37,21 +35,15 @@ func GetRenderContext(r *http.Request) *RenderContext {
 func (r *RenderContext) Render(w http.ResponseWriter) {
 	err := r.Renderer.Render(w, render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}, r.req.Header["Golte"] != nil)
 	if err != nil {
-		r.HandleRenderError(r.req, r.Components, err)
-		if rerr, ok := err.(*render.RenderError); ok {
-			r.Components = r.Components[:rerr.Index]
-			r.RenderErrorPage(w, err.Error(), http.StatusInternalServerError)
-		} else {
-			// this shouldn't happen
-			r.RenderFallback(w, err.Error(), http.StatusInternalServerError)
-		}
+		// this shouldn't happen
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-// RenderErrorPage adds the current error page to the component slice, then renders to the writer.
+// RenderError adds the current error page to the component slice, then renders to the writer.
 // If an error occurs while rendering the error page, the fallback error page is used instead.
 // It will also write the status code to the header.
-func (r *RenderContext) RenderErrorPage(w http.ResponseWriter, message string, status int) {
+func (r *RenderContext) RenderError(w http.ResponseWriter, message string, status int) {
 	w.WriteHeader(status)
 
 	page := render.Entry{Comp: r.ErrPage, Props: map[string]any{
@@ -60,19 +52,5 @@ func (r *RenderContext) RenderErrorPage(w http.ResponseWriter, message string, s
 	}}
 	r.Components = append(r.Components, page)
 
-	err := r.Renderer.Render(w, render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}, r.req.Header["Golte"] != nil)
-	if err != nil {
-		r.HandleRenderError(r.req, r.Components, err)
-		r.RenderFallback(w, err.Error(), -1)
-	}
-}
-
-// FenderFallback renders the fallback error.
-func (r *RenderContext) RenderFallback(w http.ResponseWriter, message string, status int) {
-	// TODO
-
-	if status != -1 {
-		w.WriteHeader(status)
-	}
-	io.WriteString(w, message)
+	r.Render(w)
 }
