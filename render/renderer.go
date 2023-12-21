@@ -53,11 +53,17 @@ func New(fsys fs.FS) *Renderer {
 	}
 }
 
+type RenderData struct {
+	Entries []Entry
+	SCData  SvelteContextData
+	ErrPage string
+}
+
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bool, scdata SvelteContextData) error {
+func (r *Renderer) Render(w http.ResponseWriter, data RenderData, noreload bool) error {
 	if !noreload {
 		r.mtx.Lock()
-		result, err := r.renderfile.Render(components, scdata)
+		result, err := r.renderfile.Render(data.Entries, data.SCData)
 		r.mtx.Unlock()
 
 		if err != nil {
@@ -70,16 +76,19 @@ func (r *Renderer) Render(w http.ResponseWriter, components []Entry, noreload bo
 		return r.template.Execute(w, result)
 	}
 
-	var resp []responseEntry
-	for _, v := range components {
+	var resp csrResponse
+	for _, v := range data.Entries {
 		comp := r.renderfile.Manifest[v.Comp]
-
-		resp = append(resp, responseEntry{
+		resp.Entries = append(resp.Entries, responseEntry{
 			File:  "/" + comp.Client,
 			Props: v.Props,
 			CSS:   comp.CSS,
 		})
 	}
+
+	resp.ErrPage = "/" + r.renderfile.Manifest[data.ErrPage].Client
+	// TODO css?
+	// TODO make css a single property on client response
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
@@ -114,6 +123,11 @@ type Entry struct {
 
 type SvelteContextData struct {
 	URL string
+}
+
+type csrResponse struct {
+	Entries []responseEntry
+	ErrPage string
 }
 
 type responseEntry struct {

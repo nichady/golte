@@ -3,9 +3,13 @@
     import { Node } from "./node-wrapper.js";
     import { onMount, setContext } from "svelte";
     import { golteContextKey, golteAnchorKey } from "./keys.js"
+    import { fromArray } from "./list.js"
+    import { get } from "svelte/store"
 
     export let nodes;
     export let contextData;
+
+    const node = fromArray(nodes);
 
     const url = writable(new URL(contextData.URL));
     setContext(golteContextKey, {
@@ -65,7 +69,7 @@
         const resp = await fetch(href, { headers });
         const json = await resp.json();
 
-        for (const entry of json) {
+        for (const entry of json.Entries) {
             // preload js
             import(entry.File);
 
@@ -78,6 +82,8 @@
                 document.head.appendChild(link);
             }
         }
+
+        import(json.ErrPage);
         
         return json;
     }
@@ -86,20 +92,45 @@
      * @param {any[]} json
      */
     async function update(json, u) {
-        const promises = json.map(async (entry) => ({
+        const promises = json.Entries.map(async (entry) => ({
             comp: (await import(entry.File)).default,
             props: entry.Props,
+            errPage: (await import(json.ErrPage)).default,
         }));
-
+        
         $url = new URL(u);
-        nodes = await Promise.all(promises);
+
+        // this loop replaces the first differentiated node from after onto before
+        // the reason this is done instead of simply replacing the first node is so we don't rerender unnecessary nodes
+        // this allows for data persistence in already rendered nodes
+        let before = node;
+        let after = fromArray(await Promise.all(promises));
+        while (true) {
+            const bval = get(before);
+            const aval = get(after);
+
+            if (!bval && !aval) break; // both nodes are null - end of list
+
+            const bcomp = bval.content.comp;
+            const acomp = aval.content.comp;
+
+            if (bcomp === acomp) { // nodes are same component - pass
+                before = bval.next;
+                after = aval.next;
+            } else { // nodes are different components - replace
+                before.set(aval);
+                break;
+            }
+        }
     }
 </script>
-
-{#if nodes[0]}
-    <Node nodes={nodes} index={0} />
-{/if}
 
 <svelte:document on:click={onclick} on:mouseover={onhover} on:mousedown={ontap} on:touchstart={ontap} />
 <svelte:window on:popstate={onpopstate} />
 
+<!-- #key is needed because csr error handling relies on constructor being called again -->
+{#key $node}
+    {#if $node}
+        <Node node={$node}/>
+    {/if}
+{/key}

@@ -1,17 +1,17 @@
-<!-- Do not use this component directly; instead use wrapper file. -->
+<!-- Do not import this directly; instead import node-wrapper.js -->
 
 <script>
-	import { Node } from "./node-wrapper.js";
+    import { Node } from "./node-wrapper.js";
 
-	export let nodes;
-	export let index;
-
-	$: ({ comp, props } = nodes[index]);
+	export let node;
+    const { next, content } = node;
 </script>
 
-<svelte:component this={comp} {...props}>
-	{#if nodes[index+1] }
-		<!-- do not use <svelte:self>, we need to use wrapper -->
-		<Node {nodes} index={index+1} />
-	{/if}
+<svelte:component this={content.comp} {...content.props}>
+	<!-- #key is needed because csr error handling relies on constructor being called again -->
+	{#key $next}
+		{#if $next}
+			<Node node={$next}/>
+		{/if}
+	{/key}
 </svelte:component>

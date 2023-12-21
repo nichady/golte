@@ -35,7 +35,7 @@ func GetRenderContext(r *http.Request) *RenderContext {
 // Render renders all the components in the render context to the writer.
 // If an error occurs in rendering, it will call RenderErrorPage.
 func (r *RenderContext) Render(w http.ResponseWriter) {
-	err := r.Renderer.Render(w, r.Components, r.req.Header["Golte"] != nil, r.scdata)
+	err := r.Renderer.Render(w, render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}, r.req.Header["Golte"] != nil)
 	if err != nil {
 		r.HandleRenderError(r.req, r.Components, err)
 		if rerr, ok := err.(*render.RenderError); ok {
@@ -60,7 +60,7 @@ func (r *RenderContext) RenderErrorPage(w http.ResponseWriter, message string, s
 	}}
 	r.Components = append(r.Components, page)
 
-	err := r.Renderer.Render(w, r.Components, r.req.Header["Golte"] != nil, r.scdata)
+	err := r.Renderer.Render(w, render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}, r.req.Header["Golte"] != nil)
 	if err != nil {
 		r.HandleRenderError(r.req, r.Components, err)
 		r.RenderFallback(w, err.Error(), -1)
