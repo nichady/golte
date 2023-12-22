@@ -9,7 +9,7 @@ import (
 type contextKey struct{}
 
 // RenderContext is used for lower level control over rendering.
-// It allows direct access to the renderer and component slice, and contains more detailed documentation.
+// It allows direct access to the renderer and component slice.
 type RenderContext struct {
 	Renderer   *render.Renderer
 	Components []render.Entry
@@ -30,27 +30,13 @@ func GetRenderContext(r *http.Request) *RenderContext {
 	return rctx
 }
 
-// Render renders all the components in the render context to the writer.
-// If an error occurs in rendering, it will call RenderErrorPage.
+// Render renders all the components in the render context to the writer,
+// with each subsequent component being a child of the previous.
 func (r *RenderContext) Render(w http.ResponseWriter) {
-	err := r.Renderer.Render(w, render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}, r.req.Header["Golte"] != nil)
+	data := render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}
+	err := r.Renderer.Render(w, data, r.req.Header["Golte"] != nil)
 	if err != nil {
 		// this shouldn't happen
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-// RenderError adds the current error page to the component slice, then renders to the writer.
-// If an error occurs while rendering the error page, the fallback error page is used instead.
-// It will also write the status code to the header.
-func (r *RenderContext) RenderError(w http.ResponseWriter, message string, status int) {
-	w.WriteHeader(status)
-
-	page := render.Entry{Comp: r.ErrPage, Props: map[string]any{
-		"message": message,
-		"code":    status,
-	}}
-	r.Components = append(r.Components, page)
-
-	r.Render(w)
 }

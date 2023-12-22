@@ -4,8 +4,8 @@
 
 //@ts-check
 
-import { getContext } from "svelte";
 import Original from "./Node.svelte";
+import { getContext } from "svelte";
 import { errorHandle } from "./keys";
 
 const ssrWrapper = {
@@ -27,9 +27,7 @@ const ssrWrapper = {
 function csrWrapper(options) {
     // if there as an error during ssr, don't render anything new
     const ssrError = options.props.node.content.ssrError;
-    if (ssrError) {
-        return new options.props.node.content.errPage({...options, props: ssrError});
-    }
+    if (ssrError) return new options.props.node.content.errPage({...options, props: ssrError});
     
     try {
         return new Original(options);

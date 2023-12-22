@@ -38,9 +38,9 @@ export function Render(entries, contextData, errPage) {
         stylesheets.add(path);
     }
 
-    const context = new Map();
     let error = undefined;
-    context.set(errorHandle, (e) => error = e )
+    const context = new Map();
+    context.set(errorHandle, (e) => error = e ) 
     let { html, head } = Root.render({ nodes: serverNodes, contextData }, { context });
 
     for (const path of stylesheets) {

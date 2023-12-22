@@ -1,6 +1,6 @@
 import { getContext } from "svelte"
-import { golteContextKey } from "../shared/keys.js";
+import { golteContext } from "../shared/keys.js";
 
 export function getData() {
-    return getContext(golteContextKey);
+    return getContext(golteContext);
 }

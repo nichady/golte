@@ -1,2 +1,2 @@
-export const golteContextKey = Symbol();
+export const golteContext = Symbol();
 export const errorHandle = Symbol();

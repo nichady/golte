@@ -2,7 +2,7 @@
     import { readonly, writable } from "svelte/store";
     import { Node } from "./node-wrapper.js";
     import { onMount, setContext } from "svelte";
-    import { golteContextKey } from "./keys.js"
+    import { golteContext} from "./keys.js"
     import { fromArray } from "./list.js"
     import { get } from "svelte/store"
 
@@ -13,7 +13,7 @@
     const node = fromArray(nodes);
 
     const url = writable(new URL(contextData.URL));
-    setContext(golteContextKey, {
+    setContext(golteContext, {
         url: readonly(url),
     });
 
@@ -21,7 +21,7 @@
         [$url]: promise,
     }
 
-    onMount(async () => {
+    onMount(() => {
         async function on() {
             if (this.href in hrefMap) return;
             hrefMap[this.href] = load(this.href);
@@ -90,13 +90,13 @@
     async function update(href) {
         $url = new URL(href);
 
-        const json = hrefMap[href] ?? load(href);
+        const array = await (hrefMap[href] ?? load(href));
 
         // this loop replaces the first differentiated node from after onto before
         // the reason this is done instead of simply replacing the first node is so we don't rerender unnecessary nodes
         // this allows for data persistence in already rendered nodes
         let before = node;
-        let after = fromArray(await json);
+        let after = fromArray(array);
         while (true) {
             const bval = get(before);
             const aval = get(after);
