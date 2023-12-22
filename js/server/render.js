@@ -56,7 +56,7 @@ export function Render(entries, contextData, errPage) {
             (async function () {
                 const target = document.currentScript.parentElement;
                 const { hydrate } = await import("/${hydrate}");
-                await hydrate(target, ${JSON.stringify(clientNodes)}, ${JSON.stringify(contextData)});
+                await hydrate(target, ${stringify(clientNodes)}, ${stringify(contextData)});
             })();
         </script>
     `
@@ -66,4 +66,8 @@ export function Render(entries, contextData, errPage) {
         Body: html,
         HasError: !!error,
     }
+}
+
+function stringify(object) {
+    return JSON.stringify(object).replace("</script>", "<\\/script>");
 }
