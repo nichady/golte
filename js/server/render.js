@@ -47,6 +47,10 @@ export function Render(entries, contextData, errPage) {
         head += `\n<link href="/${path}" rel="stylesheet">`;
     }
 
+    if (error) {
+        clientNodes[error.index].ssrError = error.props;
+    }
+    
     html += `
         <script>
             (async function () {

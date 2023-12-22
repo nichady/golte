@@ -7,6 +7,7 @@ export async function hydrate(target, nodes, contextData) {
         comp: (await import(n.comp)).default,
         props: n.props,
         errPage: (await import(n.errPage)).default,
+        ssrError: n.ssrError,
     })));
 
     new Root({

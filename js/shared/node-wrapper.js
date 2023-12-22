@@ -13,14 +13,24 @@ const ssrWrapper = {
         try {
             return Original.$$render(result, props, bindings, slots, context);
         } catch (err) {
-            // if there is error, we need to let go code know
-            getContext(errorHandle)(err)
-            return props.node.content.errPage.$$render(result, { message: err.stack ?? err }, bindings, slots, context);
+            // if there is error, we need to let render.js know
+            const errProps = {
+                status: 500,
+                message: (err instanceof Error && err.stack) ? err.stack : err.toString(),
+            }; 
+            getContext(errorHandle)({ props: errProps, index: props.index })
+            return props.node.content.errPage.$$render(result, errProps, bindings, slots, context);
         }
     }
 };
 
 function csrWrapper(options) {
+    // if there as an error during ssr, don't render anything new
+    const ssrError = options.props.node.content.ssrError;
+    if (ssrError) {
+        return new options.props.node.content.errPage({...options, props: ssrError});
+    }
+    
     try {
         return new Original(options);
     } catch (err) {

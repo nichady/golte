@@ -48,8 +48,7 @@
     }
 
     onMount(async () => {
-        const anchors = document.querySelectorAll(`a[noreload="mount"]`);
-        for (const a of anchors) {
+        for (const a of document.querySelectorAll(`a[noreload="mount"]`)) {
             if (a.origin !== location.origin) return;
             const json = await load(a.href);
             a[golteAnchorKey] = json;
@@ -129,6 +128,6 @@
 <!-- #key is needed because csr error handling relies on constructor being called again -->
 {#key $node}
     {#if $node}
-        <Node node={$node}/>
+        <Node node={$node} index={0} />
     {/if}
 {/key}
