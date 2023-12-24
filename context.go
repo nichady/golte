@@ -33,7 +33,7 @@ func GetRenderContext(r *http.Request) *RenderContext {
 // Render renders all the components in the render context to the writer,
 // with each subsequent component being a child of the previous.
 func (r *RenderContext) Render(w http.ResponseWriter) {
-	data := render.RenderData{Entries: r.Components, SCData: r.scdata, ErrPage: r.ErrPage}
+	data := render.RenderData{Entries: r.Components, ErrPage: r.ErrPage, SCData: r.scdata}
 	err := r.Renderer.Render(w, data, r.req.Header["Golte"] != nil)
 	if err != nil {
 		// this shouldn't happen

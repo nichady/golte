@@ -13,8 +13,7 @@ import (
 	"github.com/dop251/goja_nodejs/url"
 )
 
-// Renderer is a renderer for svelte components. It uses a *goja.Runtime underneath the hood
-// to run javascript.
+// Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
 	template   *template.Template
 	vm         *goja.Runtime
@@ -22,8 +21,8 @@ type Renderer struct {
 	mtx        sync.Mutex
 }
 
-// New constructs a new renderer from the given filesystem.
-// The filesystem should be the "server" subdirectory of the build
+// New constructs a renderer from the given FS.
+// The FS should be the "server" subdirectory of the build
 // output from "npx golte".
 // The second argument is the path where the JS, CSS,
 // and other assets are expected to be served.
@@ -55,13 +54,13 @@ func New(fsys fs.FS) *Renderer {
 
 type RenderData struct {
 	Entries []Entry
-	SCData  SvelteContextData
 	ErrPage string
+	SCData  SvelteContextData
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data RenderData, noreload bool) error {
-	if !noreload {
+func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) error {
+	if !csr {
 		r.mtx.Lock()
 		result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
 		r.mtx.Unlock()

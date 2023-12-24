@@ -10,15 +10,15 @@ import (
 
 type Options struct{}
 
-// From takes a filesystem and returns two things: a middleware and an http handler.
-// The given filesystem should contain the build files of "npx golte".
-// If not, this functions panics.
+// From constructs a golte middleware from the given fs.FS.
+// The root of the fs.FS should be the output directory from "npx golte".
 //
 // The returned middleware is used to add a render context to incoming requests.
 // It will allow you to use Layout, AddLayout, Page, RenderPage, and Render.
 // It should be mounted on the route which you plan to serve your app (typically the root).
-
-// The http handler is a file server that will serve JS, CSS, and other assets.
+//
+// This function also returns an http handler, which is a
+// file server that will serve JS, CSS, and other assets.
 // It should be served on the same path as what you set "appPath" to in golte.config.js.
 func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
 	serverDir, err := fs.Sub(fsys, "server")
