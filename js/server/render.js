@@ -59,7 +59,7 @@ export function Render(entries, contextData, errPage) {
                 await hydrate(target, ${stringify(clientNodes)}, ${stringify(contextData)});
             })();
         </script>
-    `
+    `;
 
     return {
         Head: head,

@@ -6,7 +6,8 @@ import { build } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
-import path, { join, relative } from "node:path";
+import path, { join, relative, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFile, rename, rm, readdir, lstat, cp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
@@ -19,6 +20,8 @@ import replace from '@rollup/plugin-replace';
 /**
  * @typedef {import("../types").Config} Config
  */
+
+const jsdir = relative(cwd(), dirname(dirname(fileURLToPath(import.meta.url))));
 
 function toPosix(p) {
     return p.split(path.sep).join(path.posix.sep);
@@ -164,7 +167,7 @@ async function buildClient(components, viteConfig, appPath, templateFile, outDir
                 preserveEntrySignatures: "exports-only",
                 input: [
                     templateFile,
-                    "node_modules/golte/js/client/hydrate.js",
+                    `${jsdir}/client/hydrate.js`,
                     ...components.map((c) => c.path),
                 ],
                 output: {
@@ -248,7 +251,7 @@ async function buildServer(components, viteConfig, appPath, manifest, outDir) {
             // we can't use define because vite 5 no longer statically replaces
             replace({
                 golteImports: await createImports(components),
-                golteHydrate: `"${manifest["node_modules/golte/js/client/hydrate.js"].file}"`,
+                golteHydrate: '"' + manifest[`${jsdir}/client/hydrate.js`].file + '"',
                 golteManifest: await createManifest(components, manifest),
             })
         ],
@@ -260,7 +263,7 @@ async function buildServer(components, viteConfig, appPath, manifest, outDir) {
             // lib: {},
             rollupOptions: {
                 input: [
-                    "node_modules/golte/js/server/render.js",
+                    `${jsdir}/server/render.js`,
                 ],
                 output: {
                     format: "cjs",
