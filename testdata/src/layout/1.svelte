@@ -3,9 +3,9 @@
 </script>
 
 <div id="layout1">
+    <div id="varNum" val={varNum}/>
+    <div id="varStr" val={varStr}/>
+    <div id="varBool" val={varBool}/>
+    
     <slot/>
 </div>
-
-<div id="layout1-varNum" val={varNum}/>
-<div id="layout1-varStr" val={varStr}/>
-<div id="layout1-varBool" val={varBool}/>
