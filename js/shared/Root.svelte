@@ -18,10 +18,12 @@
     });
 
     const hrefMap = {
-        [$url]: promise,
+        [$url.href]: promise,
     }
 
     onMount(() => {
+        history.replaceState($url.href, "");
+
         async function on() {
             if (this.href in hrefMap) return;
             hrefMap[this.href] = load(this.href);
