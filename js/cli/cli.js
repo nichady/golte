@@ -28,10 +28,9 @@ function toPosix(p) {
 }
 
 async function main() {
-    const { templateFile, components, viteConfig, appPath, staticDir, outDir } = await extract(await resolveConfig());
+    const { templateFile, components, viteConfig, appPath, outDir } = await extract(await resolveConfig());
 
     await buildClient(components, viteConfig, appPath, templateFile, outDir);
-    await cp(staticDir, join(outDir, "client/", appPath), { recursive: true });
 
     const manifest = JSON.parse(await readFile(join(outDir, "client/.vite/manifest.json"), "utf-8"));
     await rm(join(outDir, "/client/.vite/"), { recursive: true });
@@ -95,7 +94,6 @@ async function resolveConfig() {
  *  components: { name: string, path: string }[]
  *  viteConfig: import("vite").UserConfig
  *  appPath: string
- *  staticDir: string
  *  outDir: string
  * }>}
  */
@@ -105,7 +103,6 @@ async function extract(inputConfig) {
         template: "web/app.html",
         srcDir: "web/",
         outDir: "dist/",
-        staticDir: "web/static/",
         ignore: ["lib/"],
         appPath: "_app",
         vite: {
@@ -142,7 +139,6 @@ async function extract(inputConfig) {
         components: components,
         viteConfig: config.vite,
         appPath: config.appPath,
-        staticDir: config.staticDir,
         outDir: config.outDir,
     }
 }
