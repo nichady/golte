@@ -168,10 +168,10 @@ async function buildClient(components, viteConfig, appPath, templateFile, outDir
                 // for some reason, vite sets this to false when using rollupOptions.input instead of lib.entry
                 preserveEntrySignatures: "exports-only",
                 input: [
-                    templateFile,
-                    `${jsdir}/client/hydrate.js`,
-                    `${jsdir}/shared/default-error.svelte`,
-                    ...components.map((c) => c.path),
+                    `./${templateFile}`,
+                    `./${jsdir}/client/hydrate.js`,
+                    `./${jsdir}/shared/default-error.svelte`,
+                    ...components.map((c) => `./${c.path}`),
                 ],
                 output: {
                     format: "es",
@@ -266,7 +266,7 @@ async function buildServer(components, viteConfig, appPath, manifest, outDir) {
             // lib: {},
             rollupOptions: {
                 input: [
-                    `${jsdir}/server/render.js`,
+                    `./${jsdir}/server/render.js`,
                 ],
                 output: {
                     format: "cjs",
