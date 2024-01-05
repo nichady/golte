@@ -135,6 +135,8 @@ async function extract(inputConfig) {
         path: path,
     }));
 
+    components.push({ name: "$$$GOLTE_DEFAULT_ERROR$$$", path: `${jsdir}/shared/default-error.svelte` });
+
     return {
         templateFile: config.template,
         components: components,
@@ -168,6 +170,7 @@ async function buildClient(components, viteConfig, appPath, templateFile, outDir
                 input: [
                     templateFile,
                     `${jsdir}/client/hydrate.js`,
+                    `${jsdir}/shared/default-error.svelte`,
                     ...components.map((c) => c.path),
                 ],
                 output: {
