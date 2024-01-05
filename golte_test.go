@@ -19,7 +19,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	middleware, assets := golte.From(testdata.App, golte.Options{})
+	middleware, assets := golte.From(testdata.App)
 
 	mux := http.NewServeMux()
 	mux.Handle("/app_/", assets)

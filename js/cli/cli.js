@@ -8,7 +8,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { cwd } from "node:process";
 import path, { join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFile, rename, rm, readdir, lstat, cp } from "node:fs/promises";
+import { readFile, rename, rm, readdir, lstat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";

@@ -8,8 +8,6 @@ import (
 	"github.com/nichady/golte/render"
 )
 
-type Options struct{}
-
 // From constructs a golte middleware from the given fs.FS.
 // The root of the fs.FS should be the output directory from "npx golte".
 //
@@ -20,7 +18,7 @@ type Options struct{}
 // This function also returns an http handler, which is a
 // file server that will serve JS, CSS, and other assets.
 // It should be served on the same path as what you set "appPath" to in golte.config.js.
-func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
+func From(fsys fs.FS) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
 		panic(err)
@@ -48,7 +46,7 @@ func From(fsys fs.FS, opts Options) (middleware func(http.Handler) http.Handler,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
-	}, http.StripPrefix("/", fileServer(clientDir)).ServeHTTP
+	}, fileServer(clientDir).ServeHTTP
 }
 
 // Layout returns a middleware that calls AddLayout.
