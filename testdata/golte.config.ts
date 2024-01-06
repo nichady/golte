@@ -1,4 +1,4 @@
-import { Config } from "../js/types";
+import { Config } from "../js/public/config";
 
 export default {
     template: "src/app.html",

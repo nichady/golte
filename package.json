@@ -24,17 +24,24 @@
     "fast-glob": "^3.3.2",
     "vite": "^5.0.2"
   },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
   "peerDependencies": {
     "svelte": "^4.2.7"
   },
-  "types": "./js/types.d.ts",
+  "types": "./types.d.ts",
   "files": [
     "js"
   ],
   "exports": {
+    "./config": {
+      "types": "./js/public/config.d.ts"
+    },
     "./stores": "./js/public/stores.js"
   },
   "scripts": {
-    "build-testdata": "cd testdata && ../js/cli/cli.js && go clean -testcache"
+    "build-testdata": "cd testdata && ../js/cli/cli.js && go clean -testcache",
+    "generate-type-declarations": "tsc"
   }
 }
