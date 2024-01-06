@@ -32,7 +32,7 @@
     "js"
   ],
   "exports": {
-    ".": "./js/public/index.js"
+    "./stores": "./js/public/stores.js"
   },
   "scripts": {
     "build-testdata": "cd testdata && ../js/cli/cli.js && go clean -testcache"
