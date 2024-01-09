@@ -1,1 +1,6 @@
-<div id="error0"></div>
+<script>
+    export let status;
+</script>
+
+<div id="error0"/>
+<div id="status" {status}/>

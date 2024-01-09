@@ -25,6 +25,7 @@ func TestMain(m *testing.M) {
 	mux.Handle("/app_/", assets)
 
 	e0 := golte.Error("error/0")
+	e1 := golte.Error("error/1")
 	l0 := golte.Layout("layout/0")
 	l1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,10 @@ func TestMain(m *testing.M) {
 	mux.Handle("/route1", e0(l0(l1(l2(p1)))))
 	mux.Handle("/route2", e0(l0(l1(l2(p2)))))
 	mux.Handle("/route3", e0(l0(l1(l2(p3)))))
-	mux.Handle("/error", e0(l0(l3(p1))))
+	mux.Handle("/error0", e0(l0(l3(p1))))
+	mux.Handle("/error1", e1(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		golte.RenderError(w, r, "mymessage", 401)
+	})))
 
 	server = httptest.NewServer(middleware(mux))
 	defer server.Close()
@@ -240,21 +244,68 @@ func TestJSEnabled(t *testing.T) {
 
 func TestErrorPage(t *testing.T) {
 	err := rod.Try(func() {
-		page := browser.MustPage(server.URL + "/error")
-		page.MustWaitLoad()
-		page.MustWaitStable()
-		if !page.MustHas("#error0") {
-			t.FailNow()
-		}
-
-		t.Run("check index", func(t *testing.T) {
-			if !page.MustHas("#layout0 > #error0") {
-				t.Fail()
+		t.Run("check render error", func(t *testing.T) {
+			page := browser.MustPage(server.URL + "/error0")
+			page.MustWaitLoad()
+			page.MustWaitStable()
+			if !page.MustHas("#error0") {
+				t.FailNow()
 			}
 
-			if page.MustHas("#layout3") || page.MustHas("#page1") {
-				t.Fail()
+			t.Run("check status code", func(t *testing.T) {
+				if !page.MustHas("#status") {
+					t.FailNow()
+				}
+				status := *page.MustElement("#status").MustAttribute("status")
+				if status != "500" {
+					t.Fail()
+				}
+			})
+
+			t.Run("check index", func(t *testing.T) {
+				if !page.MustHas("#layout0 > #error0") {
+					t.Fail()
+				}
+
+				if page.MustHas("#layout3") || page.MustHas("#page1") {
+					t.Fail()
+				}
+			})
+		})
+
+		t.Run("check manual error", func(t *testing.T) {
+			page := browser.MustPage(server.URL + "/error1")
+			page.MustWaitLoad()
+			page.MustWaitStable()
+			if !page.MustHas("#error1") {
+				t.FailNow()
 			}
+
+			t.Run("check status code", func(t *testing.T) {
+				if !page.MustHas("#status") {
+					t.Fatal("status not found")
+				}
+				status := page.MustElement("#status").MustAttribute("status")
+				if status == nil {
+					t.Fatal("status is undefined")
+				}
+				if *status != "401" {
+					t.Fatalf("unexpected status: %s", *status)
+				}
+			})
+
+			t.Run("check message", func(t *testing.T) {
+				if !page.MustHas("#message") {
+					t.FailNow()
+				}
+				message := page.MustElement("#message").MustAttribute("message")
+				if message == nil {
+					t.FailNow()
+				}
+				if *message != "mymessage" {
+					t.Fail()
+				}
+			})
 		})
 	})
 	if err != nil {

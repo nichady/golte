@@ -115,7 +115,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, message string, status 
 	rctx := GetRenderContext(r)
 	entry := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
 		"message": message,
-		"code":    status,
+		"status":  status,
 	}}
 	rctx.Components = append(rctx.Components, entry)
 	rctx.Render(w)
