@@ -1,6 +1,7 @@
 package golte_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -63,27 +64,36 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func checkProps(el *rod.Element, propMap map[string]any) func(*testing.T) {
+	return func(t *testing.T) {
+		ch := make(chan *rod.Element)
+		go func() {
+			ch <- el.MustElement("#props")
+		}()
+
+		select {
+		case <-time.After(time.Second):
+			t.Fatal("#props not found")
+		case props := <-ch:
+			for k, v := range propMap {
+				prop := props.MustAttribute(k)
+				if prop == nil {
+					t.Errorf("%s is not defined", k)
+				} else if *prop != fmt.Sprintf("%v", v) {
+					t.Errorf("expected %v for %s, instead got %s", v, k, *prop)
+				}
+			}
+		}
+	}
+}
+
 func doCommonChecks(t *testing.T, page *rod.Page) {
-	t.Run("check props", func(t *testing.T) {
-		if !page.MustHas("#layout1 > #varNum") || !page.MustHas("#layout1 > #varStr") || !page.MustHas("#layout1 > #varBool") {
-			t.Fatal("elements not found")
-		}
-
-		varNum := *page.MustElement("#layout1 > #varNum").MustAttribute("val")
-		if varNum != "69" {
-			t.Errorf("varNum unexpected value: %s", varNum)
-		}
-
-		varStr := *page.MustElement("#layout1 > #varStr").MustAttribute("val")
-		if varStr != "mystring" {
-			t.Errorf("varStr unexpected value: %s", varStr)
-		}
-
-		varBool := *page.MustElement("#layout1 > #varBool").MustAttribute("val")
-		if varBool != "true" {
-			t.Errorf("varBool unexpected value: %s", varBool)
-		}
-	})
+	el := page.MustElement("#layout1")
+	t.Run("check props", checkProps(el, map[string]any{
+		"varNum":  69,
+		"varStr":  "mystring",
+		"varBool": true,
+	}))
 
 	t.Run("check style", func(t *testing.T) {
 		o := page.MustEval("() => getComputedStyle(document.querySelector('#layout0 > #layout1 > #layout2 > #page0'))['font-size']")
@@ -248,19 +258,15 @@ func TestErrorPage(t *testing.T) {
 			page := browser.MustPage(server.URL + "/error0")
 			page.MustWaitLoad()
 			page.MustWaitStable()
+
 			if !page.MustHas("#error0") {
 				t.FailNow()
 			}
+			el := page.MustElement("#error0")
 
-			t.Run("check status code", func(t *testing.T) {
-				if !page.MustHas("#status") {
-					t.FailNow()
-				}
-				status := *page.MustElement("#status").MustAttribute("status")
-				if status != "500" {
-					t.Fail()
-				}
-			})
+			t.Run("check props", checkProps(el, map[string]any{
+				"status": 500,
+			}))
 
 			t.Run("check index", func(t *testing.T) {
 				if !page.MustHas("#layout0 > #error0") {
@@ -277,35 +283,16 @@ func TestErrorPage(t *testing.T) {
 			page := browser.MustPage(server.URL + "/error1")
 			page.MustWaitLoad()
 			page.MustWaitStable()
+
 			if !page.MustHas("#error1") {
 				t.FailNow()
 			}
+			el := page.MustElement("#error1")
 
-			t.Run("check status code", func(t *testing.T) {
-				if !page.MustHas("#status") {
-					t.Fatal("status not found")
-				}
-				status := page.MustElement("#status").MustAttribute("status")
-				if status == nil {
-					t.Fatal("status is undefined")
-				}
-				if *status != "401" {
-					t.Fatalf("unexpected status: %s", *status)
-				}
-			})
-
-			t.Run("check message", func(t *testing.T) {
-				if !page.MustHas("#message") {
-					t.FailNow()
-				}
-				message := page.MustElement("#message").MustAttribute("message")
-				if message == nil {
-					t.FailNow()
-				}
-				if *message != "mymessage" {
-					t.Fail()
-				}
-			})
+			t.Run("check props", checkProps(el, map[string]any{
+				"status":  401,
+				"message": "mymessage",
+			}))
 		})
 	})
 	if err != nil {
