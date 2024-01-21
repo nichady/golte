@@ -24,9 +24,11 @@ export function Render(entries, contextData, errPage) {
     const stylesheets = new Set();
 
     const err = Manifest[errPage];
+    if (!err) throw new Error(`"${errPage}" is not a component`);
 
     for (const e of entries) {
         const c = Manifest[e.Comp];
+        if (!c) throw new Error(`"${e.Comp}" is not a component`);
         serverNodes.push({ comp: c.server, props: e.Props, errPage: err.server });
         clientNodes.push({ comp: `/${c.Client}`, props: e.Props, errPage: `/${err.Client}` });
         for (const path of c.CSS) {
