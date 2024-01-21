@@ -1,7 +1,7 @@
 // @ts-check
 
 import Root from "../shared/Root.svelte";
-import { errorHandle } from "../shared/keys";
+import { markError } from "../shared/keys";
 
 // these variables will be set by vite
 
@@ -38,19 +38,15 @@ export function Render(entries, contextData, errPage) {
         stylesheets.add(path);
     }
 
-    let error = undefined;
+    let hasError = false;
     const context = new Map();
-    context.set(errorHandle, (e) => error = e ) 
+    context.set(markError, () => hasError = true ) 
     let { html, head } = Root.render({ nodes: serverNodes, contextData }, { context });
 
     for (const path of stylesheets) {
         head += `\n<link href="/${path}" rel="stylesheet">`;
     }
 
-    if (error) {
-        clientNodes[error.index].ssrError = error.props;
-    }
-    
     html += `
         <script>
             (async function () {
@@ -64,7 +60,7 @@ export function Render(entries, contextData, errPage) {
     return {
         Head: head,
         Body: html,
-        HasError: !!error,
+        HasError: hasError,
     }
 }
 

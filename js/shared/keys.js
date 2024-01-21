@@ -1,2 +1,2 @@
 export const golteContext = Symbol();
-export const errorHandle = Symbol();
+export const markError = Symbol();
