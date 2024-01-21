@@ -36,7 +36,6 @@ func (r *RenderContext) Render(w http.ResponseWriter) {
 	data := render.RenderData{Entries: r.Components, ErrPage: r.ErrPage, SCData: r.scdata}
 	err := r.Renderer.Render(w, data, r.req.Header["Golte"] != nil)
 	if err != nil {
-		// this shouldn't happen
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

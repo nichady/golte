@@ -111,12 +111,20 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 // RenderError renders the current error page along with layouts.
 // It will also write the status code to the header.
 func RenderError(w http.ResponseWriter, r *http.Request, message string, status int) {
-	w.WriteHeader(status)
 	rctx := GetRenderContext(r)
 	entry := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
 		"message": message,
 		"status":  status,
 	}}
 	rctx.Components = append(rctx.Components, entry)
-	rctx.Render(w)
+	rctx.Render(respWriterWrapper{w})
+}
+
+// respWriterWrapper is needed to prevent superfluous WriteHeader calls
+type respWriterWrapper struct {
+	http.ResponseWriter
+}
+
+func (w respWriterWrapper) WriteHeader(int) {
+	w.ResponseWriter.WriteHeader(http.StatusInternalServerError)
 }
