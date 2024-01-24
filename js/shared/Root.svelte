@@ -102,11 +102,11 @@
         while (true) {
             const bval = get(before);
             const aval = get(after);
+            
+            if (!bval && !aval) break; // both nodes are null - end of list, no diff
 
-            if (!bval && !aval) break; // both nodes are null - end of list
-
-            const bcomp = bval.content.comp;
-            const acomp = aval.content.comp;
+            const bcomp = bval?.content.comp;
+            const acomp = aval?.content.comp;
 
             if (bcomp === acomp) { // nodes are same component - pass
                 before = bval.next;
