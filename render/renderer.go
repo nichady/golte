@@ -60,10 +60,6 @@ type RenderData struct {
 
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) error {
-	if data.ErrPage == "" {
-		data.ErrPage = "$$$GOLTE_DEFAULT_ERROR$$$"
-	}
-
 	if !csr {
 		r.mtx.Lock()
 		result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)

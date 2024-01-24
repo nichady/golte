@@ -40,6 +40,7 @@ func From(fsys fs.FS) (middleware func(http.Handler) http.Handler, assets http.H
 
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
 				Renderer: renderer,
+				ErrPage:  "$$$GOLTE_DEFAULT_ERROR$$$",
 				scdata: render.SvelteContextData{
 					URL: scheme + "://" + r.Host + r.URL.String(),
 				},
