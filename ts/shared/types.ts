@@ -1,4 +1,3 @@
-import type { Readable } from "svelte/store";
 import type { ComponentType } from "svelte";
 
 export type ClientNode = {
@@ -8,10 +7,6 @@ export type ClientNode = {
 }
 
 export type ContextData = Record<string, any>;
-
-export type GolteContext = {
-    url: Readable<URL>,
-}
 
 export type ServerComponent = {
     render(props: Record<string, any>, opts: { context: Map<any, any> }): {

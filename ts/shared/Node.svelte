@@ -3,16 +3,7 @@
 <script>
 	import { Node } from "./node-wrapper.js";
 
-	/**
-	 * @typedef {import("./list.js").NodeState<T>} NodeState
-	 * @template T
-	 */
-
-	/**
-	 * @typedef {import("./types.js").CompState} CompState
-	 */
-
-	/** @type {NodeState<CompState>} */
+	/** @type {import("./list.js").ListNode<import("./types.js").CompState>} */
 	export let node;
 	
 	/** @type {number} */

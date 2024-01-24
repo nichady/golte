@@ -1,32 +1,19 @@
 <script>
-    import { readonly, writable } from "svelte/store";
     import { Node } from "./node-wrapper.js";
     import { onMount, setContext } from "svelte";
     import { golteContext} from "./keys.js";
-    import { fromArray } from "./list.js";
     import { get } from "svelte/store";
     import { AppState, load } from "./appstate.js";
 
-    /** @typedef {import("./types.js").CompState} CompState */
-    /** @typedef {import("./types.js").ContextData} ContextData */
-
-    /** @type CompState[] */
+    /** @type {import("./types.js").CompState[]} */
     export let nodes;
 
-    /** @type Promise<CompState[]> */
-    export let promise;
-
-    /** @type ContextData */
+    /** @type {import("./types.js").ContextData} */
     export let contextData;
 
-    const node = fromArray(nodes);
-
-    const state = new AppState(contextData.URL, node, promise);
-
-    setContext(golteContext, {
-        url: readonly(state.url),
-    });
-
+    const state = new AppState(contextData.URL, nodes);
+    const { node } = state;
+    setContext(golteContext, state);
 
     onMount(() => {
         history.replaceState(get(state.url).href, "");

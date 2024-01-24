@@ -12,7 +12,9 @@ export function fromArray<T>(array: T[]): StoreList<T> {
     return current;
 }
 
-export type StoreList<T> = Writable<null | {
+export type StoreList<T> = Writable<ListNode<T> | null>
+
+export type ListNode<T> = {
     content: T,
     next: StoreList<T>,
-}>
+}

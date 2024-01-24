@@ -12,7 +12,6 @@ export async function hydrate(target: HTMLElement, nodes: ClientNode[], contextD
         target: target,
         props: {
             nodes: await promise,
-            promise,
             contextData,
         },
         hydrate: true,

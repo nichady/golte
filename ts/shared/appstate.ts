@@ -1,4 +1,4 @@
-import { get, readable, Writable, writable } from "svelte/store";
+import { get, Writable, writable } from "svelte/store";
 import { fromArray, StoreList } from "./list.js";
 import { CompState } from "./types.js";
 
@@ -15,19 +15,20 @@ type ResponseEntry = {
 
 class ServerAppState {
     url: Writable<URL>;
-    constructor(url: string) {
+    node: StoreList<CompState>;
+    
+    constructor(url: string, nodes: CompState[]) {
         this.url = writable(new URL(url));
+        this.node = fromArray(nodes);
     }
 }
 
 class ClientAppState extends ServerAppState {
     hrefMap: Record<string, Promise<CompState[]>> = {};
-    node: StoreList<CompState>;
 
-    constructor(url: string, node: StoreList<CompState>, promise: Promise<CompState[]>) {
-        super(url);
-        this.hrefMap[get(this.url).href] = promise;
-        this.node = node;
+    constructor(url: string, nodes: CompState[]) {
+        super(url, nodes);
+        this.hrefMap[get(this.url).href] = new Promise(r => r(nodes));
     }
 
     async update(href: string) {
@@ -66,6 +67,7 @@ class ClientAppState extends ServerAppState {
 }
 
 export const AppState: typeof ClientAppState = import.meta.env.SSR ? ServerAppState : ClientAppState as any;
+export type AppState = ClientAppState;
 
 export async function load(href: string) {
     const headers = { "Golte": "true" };

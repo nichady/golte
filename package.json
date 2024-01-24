@@ -50,7 +50,8 @@
     }
   },
   "scripts": {
-    "build-testdata": "cd testdata && node ../js/cli/cli.js && go clean -testcache",
-    "build-js": "rm -rf js && tsc && node scripts/copy-svelte.js"
+    "test": "npm run build:js && npm run build:testdata && go test ./...",
+    "build:testdata": "cd testdata && node ../js/cli/cli.js && go clean -testcache",
+    "build:js": "rm -rf js && tsc && node scripts/copy-svelte.js"
   }
 }
