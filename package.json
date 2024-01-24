@@ -25,23 +25,32 @@
     "vite": "^5.0.2"
   },
   "devDependencies": {
+    "@types/node": "^20.11.5",
     "typescript": "^5.3.3"
   },
   "peerDependencies": {
     "svelte": "^4.2.7"
   },
-  "types": "./types.d.ts",
   "files": [
-    "js"
+    "js",
+    "ts"
   ],
   "exports": {
-    "./config": {
-      "types": "./js/public/config.d.ts"
-    },
-    "./stores": "./js/public/stores.js"
+    ".": "./js/public/index.js",
+    "./*": "./js/public/*/index.js"
+  },
+  "typesVersions": {
+    "*": {
+      "index": [
+        "./ts/public/index.ts"
+      ],
+      "*": [
+        "./ts/public/*/index.ts"
+      ]
+    }
   },
   "scripts": {
-    "build-testdata": "cd testdata && ../js/cli/cli.js && go clean -testcache",
-    "generate-type-declarations": "tsc"
+    "build-testdata": "cd testdata && node ../js/cli/cli.js && go clean -testcache",
+    "build-js": "rm -rf js && tsc && node scripts/copy-svelte.js"
   }
 }

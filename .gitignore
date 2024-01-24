@@ -1,5 +1,3 @@
 /node_modules/
 /testdata/dist/
-/js/**/*.d.ts
-/js/**/*.d.ts.map
-!/js/public/config.d.ts
+/js/

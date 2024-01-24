@@ -1,14 +1,19 @@
 {
   "compilerOptions": {
-    "allowJs": true,                                  /* Allow JavincludeaScript files to be a part of your program. Use the 'checkJS' option to get errors from these files. */
+    "module": "Node16",
+    "target": "ESNext",
 
-    "declaration": true,                              /* Generate .d.ts files from TypeScript and JavaScript files in your project. */
-    "declarationMap": true,                           /* Create sourcemaps for d.ts files. */
-    "emitDeclarationOnly": true,                      /* Only output d.ts files and not JavaScript files. */
+    "strict": true,
+    "checkJs": true, // jsdoc is used in svelte files instead of ts
 
-    "strict": true,                                      /* Enable all strict type-checking options. */
+    "sourceMap": true,
+    "outDir": "js",
     
-    "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
+    "types": [
+      "vite/client", // for import.meta.env
+    ],
   },
-  "include": [ "js/public/*.js" ],
+  "include": [
+    "ts/**/*.ts"
+  ],
 }

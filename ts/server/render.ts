@@ -1,7 +1,8 @@
-// @ts-check
+import { default as UntypedRoot } from "../shared/Root.svelte";
+import { ContextData, ServerComponent } from "../shared/types.js";
+import { markError } from "../shared/keys.js";
 
-import Root from "../shared/Root.svelte";
-import { markError } from "../shared/keys";
+const Root: ServerComponent = UntypedRoot as any;
 
 // these variables will be set by vite
 
@@ -14,14 +15,15 @@ const hydrate = golteHydrate;
 // @ts-ignore
 export const Manifest = golteManifest;
 
-/**
- * @param {{ Comp: string, Props: {} }[]} entries
- * @returns {{ Head: string, Body: string, HasError: boolean }}
- */
-export function Render(entries, contextData, errPage) {
+type Entry = {
+    Comp: string;
+    Props: Record<string, any>;
+};
+
+export function Render(entries: Entry[], contextData: ContextData, errPage: string) {
     const serverNodes = [];
     const clientNodes = [];
-    const stylesheets = new Set();
+    const stylesheets = new Set<string>();
 
     const err = Manifest[errPage];
     if (!err) throw new Error(`"${errPage}" is not a component`);
@@ -66,6 +68,6 @@ export function Render(entries, contextData, errPage) {
     }
 }
 
-function stringify(object) {
+function stringify(object: any) {
     return JSON.stringify(object).replace("</script>", "<\\/script>");
 }

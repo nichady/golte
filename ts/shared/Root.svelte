@@ -6,8 +6,16 @@
     import { fromArray } from "./list.js"
     import { get } from "svelte/store"
 
+    /** @typedef {import("./types.js").CompState} CompState */
+    /** @typedef {import("./types.js").ContextData} ContextData */
+
+    /** @type CompState[] */
     export let nodes;
+
+    /** @type Promise<CompState[]> */
     export let promise;
+
+    /** @type ContextData */
     export let contextData;
 
     const node = fromArray(nodes);
@@ -24,28 +32,33 @@
     onMount(() => {
         history.replaceState($url.href, "");
 
+        /** @type {(this: HTMLAnchorElement) => Promise<void>} */ 
         async function on() {
             if (this.href in hrefMap) return;
             hrefMap[this.href] = load(this.href);
         };
 
-        for (const a of document.querySelectorAll(`a[noreload="mount"]`)) {
+        for (const a of (document.querySelectorAll(`a[noreload="mount"]`))) {
+            if (!(a instanceof HTMLAnchorElement)) continue;
             if (a.origin !== location.origin) continue;
             on.call(a)
         }
 
-        for (const a of document.querySelectorAll(`a[noreload="hover"]`)) {
+        for (const a of (document.querySelectorAll(`a[noreload="hover"]`))) {
+            if (!(a instanceof HTMLAnchorElement)) continue;
             if (a.origin !== location.origin) continue;
             a.addEventListener("mouseover", on);
         }
         
-        for (const a of document.querySelectorAll(`a[noreload="tap"]`)) {
+        for (const a of (document.querySelectorAll(`a[noreload="tap"]`))) {
+            if (!(a instanceof HTMLAnchorElement)) continue;
             if (a.origin !== location.origin) continue;
             a.addEventListener("mousedown", on);
             a.addEventListener("touchstart", on);
         }
 
-        for (const a of document.querySelectorAll(`a[noreload]`)) {
+        for (const a of (document.querySelectorAll(`a[noreload]`))) {
+            if (!(a instanceof HTMLAnchorElement)) continue;
             if (a.origin !== location.origin) continue;
             a.addEventListener("click", async (e) => {
                 e.preventDefault();
@@ -60,12 +73,30 @@
         });
     });
 
+    /**
+     * @param {string} href
+     */
     async function load(href) {
+        /**
+         * @typedef ResponseEntry
+         * @prop {string} File
+         * @prop {Record<string, any>} Props
+         * @prop {string[]} CSS
+         */
+
+        /**
+         * @typedef CSRResponse
+         * @prop {ResponseEntry[]} Entries
+         * @prop {ResponseEntry} ErrPage
+         */
+
         const headers = {
             "Golte": "true",
         };
 
         const resp = await fetch(href, { headers });
+
+        /** @type {CSRResponse} */
         const json = await resp.json();
 
         for (const entry of [...json.Entries, json.ErrPage]) {
@@ -79,7 +110,7 @@
             }
             // TODO send css as its own field, outside of the array
         }
-        
+
         const promises = json.Entries.map(async (entry) => ({
             comp: (await import(entry.File)).default,
             props: entry.Props,
@@ -89,6 +120,9 @@
         return await Promise.all(promises);
     }
 
+    /**
+     * @param {string} href
+     */
     async function update(href) {
         $url = new URL(href);
 
@@ -102,14 +136,19 @@
         while (true) {
             const bval = get(before);
             const aval = get(after);
-            
+
             if (!bval && !aval) break; // both nodes are null - end of list, no diff
 
             const bcomp = bval?.content.comp;
             const acomp = aval?.content.comp;
 
             if (bcomp === acomp) { // nodes are same component - pass
+                // neiter bval nor aval can be null at this point - typescript isn't smart enough to figure that out
+                
+                //@ts-ignore
                 before = bval.next;
+                
+                //@ts-ignore
                 after = aval.next;
             } else { // nodes are different components - replace
                 before.set(aval);

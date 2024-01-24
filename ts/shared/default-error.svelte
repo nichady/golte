@@ -1,5 +1,9 @@
 <script>
-    export let status, message;
+    /** @type {number} */
+    export let status;
+
+    /** @type {string} */
+    export let message;
 </script>
 
 <h1>{status}</h1>

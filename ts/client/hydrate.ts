@@ -1,8 +1,7 @@
-// @ts-check
-
 import Root from "../shared/Root.svelte";
+import type { ClientNode, ContextData } from "../shared/types.js"
 
-export async function hydrate(target, nodes, contextData) {
+export async function hydrate(target: HTMLElement, nodes: ClientNode[], contextData: ContextData) {
     const promise = Promise.all(nodes.map(async (n) => ({
         comp: (await import(n.comp)).default,
         props: n.props,

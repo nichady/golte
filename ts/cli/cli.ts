@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
-// @ts-check
-
-import { build } from "vite";
+import { build, UserConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
@@ -14,16 +12,24 @@ import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
 import merge from "deepmerge";
 import replace from '@rollup/plugin-replace';
+import { Config } from "../public/config/index.js";
 
-// TODO custom log output
+type Component = {
+    name: string,
+    path: string
+};
 
-/**
- * @typedef {import("../types").Config} Config
- */
+type ViteManifest = Record<string, ViteManifestEntry>;
+
+type ViteManifestEntry = {
+    file: string,
+    css: string,
+    imports: string,
+};
 
 const jsdir = relative(cwd(), dirname(dirname(fileURLToPath(import.meta.url))));
 
-function toPosix(p) {
+function toPosix(p: string) {
     return p.split(path.sep).join(path.posix.sep);
 }
 
@@ -41,7 +47,7 @@ async function main() {
     await clean(join(outDir, "/client"));
 }
 
-/**
+/**false
  * @returns {Promise<Config>}
  */
 async function resolveConfig() {
@@ -52,7 +58,7 @@ async function resolveConfig() {
         "golte.config.mts",
     ];
 
-    let resolvedPath = undefined;
+    let resolvedPath = "";
     for (const filename of defaultConfigFiles) {
         const filepath = join(cwd(), filename);
         if (!existsSync(filepath)) continue;
@@ -87,19 +93,8 @@ async function resolveConfig() {
     }
 }
 
-/**
- * @param {Config} inputConfig
- * @returns {Promise<{
- *  templateFile: string
- *  components: { name: string, path: string }[]
- *  viteConfig: import("vite").UserConfig
- *  appPath: string
- *  outDir: string
- * }>}
- */
-async function extract(inputConfig) {
-    /** @type {Required<Config>} */
-    const defaultConfig = {
+async function extract(inputConfig: Config) {
+    const defaultConfig: Required<Config> = {
         template: "web/app.html",
         srcDir: "web/",
         outDir: "dist/",
@@ -143,16 +138,13 @@ async function extract(inputConfig) {
     }
 }
 
-/**
- * @param {{ name: string, path: string }[]} components
- * @param {import("vite").UserConfig} viteConfig
- * @param {string} appPath
- * @param {string} templateFile 
- * @param {string} outDir
- */
-async function buildClient(components, viteConfig, appPath, templateFile, outDir) {
-    /** @type {import("vite").UserConfig} */
-    const config = {
+async function buildClient(
+    components: Component[],
+    viteConfig: UserConfig,
+    appPath: string,
+    templateFile: string,
+    outDir: string) {
+    const config: UserConfig = {
         build: {
             ssr: false,
             outDir: join(outDir, "client"),
@@ -183,11 +175,7 @@ async function buildClient(components, viteConfig, appPath, templateFile, outDir
     await build(merge(viteConfig, config));
 }
 
-/**
- * @param {{ name: string, path: string }[]} components 
- * @returns string
- */
-async function createImports(components) {
+async function createImports(components: Component[]) {
     let imports = ``;
     for (const i in components) {
         const { path } = components[i];
@@ -196,12 +184,7 @@ async function createImports(components) {
     return imports;
 }
 
-/**
- * @param {{ name: string, path: string }[]} components 
- * @param {any} manifestFile
- * @returns string
- */
-async function createManifest(components, manifestFile) {
+async function createManifest(components: Component[], manifestFile: ViteManifest) {
     let manifest = `{\n`;
     for (const i in components) {
         const { name, path } = components[i];
@@ -222,7 +205,7 @@ async function createManifest(components, manifestFile) {
     return manifest;
 }
 
-function traverseCSS(manifest, component) {
+function traverseCSS(manifest: ViteManifest, component: ViteManifestEntry) {
     const css = new Set(component.css);
 
     for (const i of component.imports ?? []) {
@@ -236,18 +219,17 @@ function traverseCSS(manifest, component) {
     return css;
 }
 
-/**
- * @param components {{ name: string, path: string }[]}
- * @param {import("vite").UserConfig} viteConfig
- * @param {string} appPath
- * @param {any} manifest
- * @param {string} outDir
- */
-async function buildServer(components, viteConfig, appPath, manifest, outDir) {
-    /** @type {import("vite").UserConfig} */
-    const config = {
+async function buildServer(
+    components: Component[],
+    viteConfig: UserConfig,
+    appPath: string,
+    manifest: any,
+    outDir: string,
+) {
+    const config: UserConfig = {
         plugins: [
             // we can't use define because vite 5 no longer statically replaces
+            //@ts-ignore for some reason there is typescript error here
             replace({
                 golteImports: await createImports(components),
                 golteHydrate: '"' + manifest[`${jsdir}/client/hydrate.js`].file + '"',
@@ -278,11 +260,8 @@ async function buildServer(components, viteConfig, appPath, manifest, outDir) {
     await build(merge(viteConfig, config));
 }
 
-/**
- * Removes all empty directories in a given directory
- * @param {string} path
- */
-async function clean(path) {
+// Removes all empty directories in a given directory
+async function clean(path: string) {
     for (let item of await readdir(path)) {
         item = join(path, item);
         const stat = await lstat(item);
