@@ -165,13 +165,13 @@ func TestJSEnabled(t *testing.T) {
 		doCommonChecks(t, page)
 
 		t.Run("check noreload", func(t *testing.T) {
-			if !page.MustHas("#layout2 > a[noreload='mount']") || !page.MustHas("#layout2 > a[noreload='hover']") || !page.MustHas("#layout2 > a[noreload='tap']") {
+			if !page.MustHas("#layout2 > a[href='/route1']") || !page.MustHas("#layout2 > a[href='/route2']") || !page.MustHas("#layout2 > a[href='/route3']") {
 				t.Fatal("elements not found")
 			}
 
-			mount := page.MustElement("#layout2 > a[noreload='mount']")
-			hover := page.MustElement("#layout2 > a[noreload='hover']")
-			tap := page.MustElement("#layout2 > a[noreload='tap']")
+			mount := page.MustElement("#layout2 > a[href='/route1']")
+			hover := page.MustElement("#layout2 > a[href='/route2']")
+			tap := page.MustElement("#layout2 > a[href='/route3']")
 
 			select {
 			case <-r1:

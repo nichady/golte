@@ -1,7 +1,11 @@
+<script>
+    import { Link } from "../../../js/public/index.js"
+</script>
+
 <div id="layout2">
-    <a noreload="mount" href="/route1">route1</a>
-    <a noreload="hover" href="/route2">route2</a>
-    <a noreload="tap" href="/route3">route3</a>
+    <Link href="/route1" preload="mount">route1</Link>
+    <Link href="/route2" preload="hover">route2</Link>
+    <Link href="/route3" preload="tap"  >route3</Link>
 
     <slot/>
 </div>

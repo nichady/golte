@@ -3,7 +3,7 @@
     import { onMount, setContext } from "svelte";
     import { golteContext} from "./keys.js";
     import { get } from "svelte/store";
-    import { AppState, load } from "./appstate.js";
+    import { AppState } from "./appstate.js";
 
     /** @type {import("./types.js").CompState[]} */
     export let nodes;
@@ -17,43 +17,7 @@
 
     onMount(() => {
         history.replaceState(get(state.url).href, "");
-
-        /** @type {(this: HTMLAnchorElement) => Promise<void>} */ 
-        async function on() {
-            if (this.href in state.hrefMap) return;
-            state.hrefMap[this.href] = load(this.href);
-        };
-
-        for (const a of (document.querySelectorAll(`a[noreload="mount"]`))) {
-            if (!(a instanceof HTMLAnchorElement)) continue;
-            if (a.origin !== location.origin) continue;
-            on.call(a)
-        }
-
-        for (const a of (document.querySelectorAll(`a[noreload="hover"]`))) {
-            if (!(a instanceof HTMLAnchorElement)) continue;
-            if (a.origin !== location.origin) continue;
-            a.addEventListener("mouseover", on);
-        }
-        
-        for (const a of (document.querySelectorAll(`a[noreload="tap"]`))) {
-            if (!(a instanceof HTMLAnchorElement)) continue;
-            if (a.origin !== location.origin) continue;
-            a.addEventListener("mousedown", on);
-            a.addEventListener("touchstart", on);
-        }
-
-        for (const a of (document.querySelectorAll(`a[noreload]`))) {
-            if (!(a instanceof HTMLAnchorElement)) continue;
-            if (a.origin !== location.origin) continue;
-            a.addEventListener("click", async (e) => {
-                e.preventDefault();
-                await state.update(a.href);
-                history.pushState(a.href, "", a.href);
-            })
-        }
-
-        window.addEventListener("popstate", async (e) => {
+        addEventListener("popstate", async (e) => {
             if (!e.state) return;
             await state.update(e.state);
         });
