@@ -1,6 +1,7 @@
 import { default as UntypedRoot } from "../shared/Root.svelte";
 import { ContextData, ServerComponent } from "../shared/types.js";
-import { markError } from "../shared/keys.js";
+import { handleError } from "../shared/keys.js";
+import { ErrorProps, ClientNode } from "../shared/types.js";
 
 const Root: ServerComponent = UntypedRoot as any;
 
@@ -20,9 +21,21 @@ type Entry = {
     Props: Record<string, any>;
 };
 
+type ServerNode = {
+    comp: any,
+    props: Record<string, any>,
+    errPage: any,
+};
+
+
+type SSRError = {
+    index: number,
+    props: ErrorProps,
+};
+
 export function Render(entries: Entry[], contextData: ContextData, errPage: string) {
-    const serverNodes = [];
-    const clientNodes = [];
+    const serverNodes: ServerNode[] = [];
+    const clientNodes: ClientNode[] = [];
     const stylesheets = new Set<string>();
 
     const err = Manifest[errPage];
@@ -42,13 +55,17 @@ export function Render(entries: Entry[], contextData: ContextData, errPage: stri
         stylesheets.add(path);
     }
 
-    let hasError = false;
-    const context = new Map();
-    context.set(markError, () => hasError = true ) 
+    let error: SSRError | undefined;
+    const context = new Map(); // TODO dont use context for this
+    context.set(handleError, (e: any) => error = e ) 
     let { html, head } = Root.render({ nodes: serverNodes, contextData }, { context });
 
     for (const path of stylesheets) {
         head += `\n<link href="/${path}" rel="stylesheet">`;
+    }
+
+    if (error) {
+        clientNodes[error.index].ssrError = error.props;
     }
 
     html += `
@@ -64,7 +81,7 @@ export function Render(entries: Entry[], contextData: ContextData, errPage: stri
     return {
         Head: head,
         Body: html,
-        HasError: hasError,
+        HasError: !!error,
     }
 }
 

@@ -1,9 +1,15 @@
 import type { ComponentType } from "svelte";
 
+export type ErrorProps = {
+    status: number,
+    message: string,
+}
+
 export type ClientNode = {
     comp: string,
     props: Record<string, any>,
     errPage: string,
+    ssrError?: ErrorProps,
 }
 
 export type ContextData = Record<string, any>;

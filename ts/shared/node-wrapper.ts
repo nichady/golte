@@ -4,7 +4,7 @@
 
 import { default as ClientNode } from "./Node.svelte";
 import { getContext } from "svelte";
-import { markError } from "./keys.js";
+import { handleError } from "./keys.js";
 import type { ServerComponent } from "./types.js";
 
 const ServerNode: ServerComponent = ClientNode as any;
@@ -14,13 +14,22 @@ const ssrWrapper: ServerComponent = {
         try {
             return ServerNode.$$render(result, props, bindings, slots, context);
         } catch (err: any) {
-            getContext<Function>(markError)(); // if there is error, we need to let render.js know
-            return props.node.content.errPage.$$render(result, {
+            const errProps = {
                 status: 500,
                 message: (err instanceof Error && err.stack) ? err.stack : err.toString(),
-            }, bindings, slots, context);
+            };
+            getContext<Function>(handleError)({ index: props.index, props: errProps });
+            return props.node.content.errPage.$$render(result, errProps, bindings, slots, context);
         }
     }
 };
 
-export const Node: typeof ClientNode = import.meta.env.SSR ? ssrWrapper : ServerNode as any;
+function csrWrapper(options: any): ClientNode {
+    // if there as an error during ssr, don't render anything new
+    const ssrError = options.props.node.content.ssrError;
+    if (ssrError) return new options.props.node.content.errPage({ ...options, props: ssrError });
+
+    return new ClientNode(options);
+};
+
+export const Node: typeof ClientNode = import.meta.env.SSR ? ssrWrapper : csrWrapper as any;
