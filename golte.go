@@ -4,21 +4,19 @@ import (
 	"context"
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/nichady/golte/render"
 )
 
-// From constructs a golte middleware from the given fs.FS.
-// The root of the fs.FS should be the output directory from "npx golte".
+// New constructs a golte middleware from the given filesystem.
+// The root of the filesystem should be the golte build directory.
 //
 // The returned middleware is used to add a render context to incoming requests.
 // It will allow you to use Layout, AddLayout, Page, RenderPage, and Render.
-// It should be mounted on the route which you plan to serve your app (typically the root).
-//
-// This function also returns an http handler, which is a
-// file server that will serve JS, CSS, and other assets.
-// It should be served on the same path as what you set "appPath" to in golte.config.js.
-func From(fsys fs.FS) (middleware func(http.Handler) http.Handler, assets http.HandlerFunc) {
+// It should be mounted on the root of your router.
+// The middleware should not be mounted on routes other than the root.
+func New(fsys fs.FS) func(http.Handler) http.Handler {
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
 		panic(err)
@@ -30,9 +28,14 @@ func From(fsys fs.FS) (middleware func(http.Handler) http.Handler, assets http.H
 	}
 
 	renderer := render.New(serverDir)
-
+	assets := fileServer(clientDir)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/"+renderer.AppPath()+"/") {
+				assets.ServeHTTP(w, r)
+				return
+			}
+
 			scheme := "http"
 			if r.TLS != nil {
 				scheme += "s"
@@ -47,7 +50,7 @@ func From(fsys fs.FS) (middleware func(http.Handler) http.Handler, assets http.H
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
-	}, fileServer(clientDir).ServeHTTP
+	}
 }
 
 // Layout returns a middleware that calls AddLayout.

@@ -47,10 +47,7 @@ async function main() {
     await clean(join(outDir, "/client"));
 }
 
-/**false
- * @returns {Promise<Config>}
- */
-async function resolveConfig() {
+async function resolveConfig(): Promise<Config> {
     const defaultConfigFiles = [
         "golte.config.js",
         "golte.config.mjs",
@@ -99,7 +96,7 @@ async function extract(inputConfig: Config) {
         srcDir: "web/",
         outDir: "dist/",
         ignore: ["lib/"],
-        appPath: "_app",
+        appPath: "golte_",
         vite: {
             build: {
                 cssCodeSplit: true,
@@ -232,8 +229,9 @@ async function buildServer(
             //@ts-ignore for some reason there is typescript error here
             replace({
                 golteImports: await createImports(components),
-                golteHydrate: '"' + manifest[`${jsdir}/client/hydrate.js`].file + '"',
+                golteHydrate: `"${manifest[jsdir + "/client/hydrate.js"].file}"`,
                 golteManifest: await createManifest(components, manifest),
+                golteAppPath: `"${appPath}"`,
             })
         ],
         build: {
@@ -245,6 +243,7 @@ async function buildServer(
             rollupOptions: {
                 input: [
                     `./${jsdir}/server/render.js`,
+                    `./${jsdir}/server/info.js`,
                 ],
                 output: {
                     format: "cjs",

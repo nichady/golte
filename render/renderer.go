@@ -15,10 +15,12 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	template   *template.Template
-	vm         *goja.Runtime
 	renderfile renderfile
-	mtx        sync.Mutex
+	infofile   infofile
+
+	template *template.Template
+	vm       *goja.Runtime
+	mtx      sync.Mutex
 }
 
 // New constructs a renderer from the given FS.
@@ -45,10 +47,17 @@ func New(fsys fs.FS) *Renderer {
 		panic(err)
 	}
 
+	var infofile infofile
+	err = vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Renderer{
 		template:   tmpl,
 		vm:         vm,
 		renderfile: renderfile,
+		infofile:   infofile,
 	}
 }
 
@@ -100,6 +109,11 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	return json.NewEncoder(w).Encode(resp)
 }
 
+// AppPath returns the appPath that was used in the golte configuration file.
+func (r *Renderer) AppPath() string {
+	return r.infofile.AppPath
+}
+
 type result struct {
 	Head     string
 	Body     string
@@ -133,4 +147,8 @@ type responseEntry struct {
 	File  string
 	Props map[string]any
 	CSS   []string
+}
+
+type infofile struct {
+	AppPath string
 }

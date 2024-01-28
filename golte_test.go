@@ -20,10 +20,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	middleware, assets := golte.From(testdata.App)
-
 	mux := http.NewServeMux()
-	mux.Handle("/app_/", assets)
 
 	e0 := golte.Error("error/0")
 	e1 := golte.Error("error/1")
@@ -50,7 +47,7 @@ func TestMain(m *testing.M) {
 		golte.RenderError(w, r, "mymessage", 401)
 	})))
 
-	server = httptest.NewServer(middleware(mux))
+	server = httptest.NewServer(golte.New(testdata.App)(mux))
 	defer server.Close()
 
 	browser = rod.New()
