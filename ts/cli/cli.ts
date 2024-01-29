@@ -4,15 +4,16 @@ import { build, UserConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
-import path, { join, relative, dirname } from "node:path";
+import path, { join, relative, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFile, rename, rm, readdir, lstat } from "node:fs/promises";
+import { readFile, rename, rm, readdir, lstat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
 import glob from "fast-glob";
 import merge from "deepmerge";
 import replace from '@rollup/plugin-replace';
 import { Config } from "../public/config/index.js";
+import { embed } from "./templates.js";
 
 type Component = {
     name: string,
@@ -34,7 +35,9 @@ function toPosix(p: string) {
 }
 
 async function main() {
-    const { templateFile, components, viteConfig, appPath, outDir } = await extract(await resolveConfig());
+    const { templateFile, components, viteConfig, appPath, outDir, pkg } = await extract(await resolveConfig());
+
+    await rm(outDir, { recursive: true });
 
     await buildClient(components, viteConfig, appPath, templateFile, outDir);
 
@@ -45,6 +48,8 @@ async function main() {
 
     await rename(join(outDir, "/client", templateFile), join(outDir, "/server/template.html"));
     await clean(join(outDir, "/client"));
+
+    if (pkg) writeFile(join(outDir, "embed.go"), embed(pkg));
 }
 
 async function resolveConfig(): Promise<Config> {
@@ -94,8 +99,8 @@ async function extract(inputConfig: Config) {
     const defaultConfig: Required<Config> = {
         template: "web/app.html",
         srcDir: "web/",
-        outDir: "dist/",
-        ignore: ["lib/"],
+        outDir: "build/",
+        package: false,
         appPath: "golte_",
         vite: {
             build: {
@@ -117,8 +122,7 @@ async function extract(inputConfig: Config) {
     if (config.appPath.startsWith("/")) config.appPath = config.appPath.slice(1);
     if (config.appPath.endsWith("/")) config.appPath = config.appPath.slice(0, -1);
 
-    const ignore = config.ignore.map((path) => join(config.srcDir, path));
-    const paths = await glob(toPosix(join(config.srcDir, "**/*.svelte")), { ignore });
+    const paths = await glob(toPosix(join(config.srcDir, "**/*.svelte")));
     const components = paths.map((path) => ({
         name: relative(config.srcDir, path).replace(/\.svelte$/, ""),
         path: path,
@@ -126,12 +130,20 @@ async function extract(inputConfig: Config) {
 
     components.push({ name: "$$$GOLTE_DEFAULT_ERROR$$$", path: `${jsdir}/shared/default-error.svelte` });
 
+    let pkg = "";
+    if (config.package === true) {
+        pkg = basename(config.outDir);
+    } else if (typeof config.package === "string") {
+        pkg = config.package;
+    }
+
     return {
         templateFile: config.template,
         components: components,
         viteConfig: config.vite,
         appPath: config.appPath,
         outDir: config.outDir,
+        pkg,
     }
 }
 
