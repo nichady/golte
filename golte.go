@@ -31,7 +31,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 	assets := fileServer(clientDir)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasPrefix(r.URL.Path, "/"+renderer.AppPath()+"/") {
+			if strings.HasPrefix(r.URL.Path, "/"+renderer.Assets()+"/") {
 				assets.ServeHTTP(w, r)
 				return
 			}

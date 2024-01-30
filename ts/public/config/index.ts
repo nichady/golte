@@ -24,7 +24,7 @@ export type Config = {
     srcDir?: string,
 
     /**
-     * The build output directory. If it already exists
+     * The build output directory. If it already exists,
      * this directory will be removed prior to building.
      * 
      * @default "build/"
@@ -48,7 +48,7 @@ export type Config = {
      * 
      * @default "golte_"
      */
-    appPath?: string;
+    assets?: string;
 
     /**
      * Pass additional configuration options to Vite.

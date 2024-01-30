@@ -13,4 +13,4 @@ var fsys embed.FS
 
 var Golte = golte.New(fsys)
 	`;
-}
+};

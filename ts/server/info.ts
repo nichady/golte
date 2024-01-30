@@ -1,2 +1,2 @@
 // @ts-ignore
-export let AppPath = golteAppPath;
+export let Assets = golteAssets;

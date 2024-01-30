@@ -24,10 +24,8 @@ type Renderer struct {
 }
 
 // New constructs a renderer from the given FS.
-// The FS should be the "server" subdirectory of the build
-// output from "npx golte".
-// The second argument is the path where the JS, CSS,
-// and other assets are expected to be served.
+// The FS should be the "server" subdirectory of the build output from "npx golte".
+// The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys fs.FS) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
@@ -109,9 +107,9 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	return json.NewEncoder(w).Encode(resp)
 }
 
-// AppPath returns the appPath that was used in the golte configuration file.
-func (r *Renderer) AppPath() string {
-	return r.infofile.AppPath
+// Assets returns the "assets" field that was used in the golte configuration file.
+func (r *Renderer) Assets() string {
+	return r.infofile.Assets
 }
 
 type result struct {
@@ -150,5 +148,5 @@ type responseEntry struct {
 }
 
 type infofile struct {
-	AppPath string
+	Assets string
 }

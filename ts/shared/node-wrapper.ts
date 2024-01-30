@@ -13,10 +13,10 @@ const ssrWrapper: ServerComponent = {
     $$render: (result, props, bindings, slots, context) => {
         try {
             return ServerNode.$$render(result, props, bindings, slots, context);
-        } catch (err: any) {
+        } catch (err) {
             const errProps = {
                 status: 500,
-                message: (err instanceof Error && err.stack) ? err.stack : err.toString(),
+                message: (err instanceof Error && err.stack) ? err.stack : String(err),
             };
             getContext<Function>(handleError)({ index: props.index, props: errProps });
             return props.node.content.errPage.$$render(result, errProps, bindings, slots, context);
