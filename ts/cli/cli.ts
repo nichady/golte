@@ -15,6 +15,7 @@ import { Config } from "../public/config/index.js";
 import { embed } from "./templates.js";
 import { jsdir, toPosix, clean, traverseCSS } from "./util.js";
 import { ClientBuild, ComponentFile, ExtractedConfig, ViteManifest } from "./types.js";
+import { pathToFileURL } from "node:url";
 
 async function main() {
     const config = await extract(await resolveConfig());
@@ -52,8 +53,7 @@ async function resolveConfig(): Promise<Config> {
     });
 
     try {
-        // file:// is necessary for windows
-        return (await import("file://" + join(cwd(), tempFile))).default;
+        return (await import(pathToFileURL(join(cwd(), tempFile)).href)).default;
     } finally {
         await rm(tempFile);
     }
@@ -140,7 +140,7 @@ async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
                     chunkFileNames: `${config.assets}/chunks/[name]-[hash].js`,
                     assetFileNames: `${config.assets}/assets/[name]-[hash].[ext]`,
                     sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
-                        return "file://" + join(dirname(sourcemapPath), relativeSourcePath);
+                        return pathToFileURL(join(dirname(sourcemapPath), relativeSourcePath)).href;
                     },
                 }
             },
@@ -244,3 +244,4 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
 }
 
 await main();
+

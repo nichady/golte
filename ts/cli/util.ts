@@ -4,7 +4,7 @@ import { cwd } from "node:process";
 import { fileURLToPath } from "node:url";
 import { ViteManifest, ViteManifestEntry } from "./types.js";
 
-export const jsdir = relative(cwd(), dirname(dirname(fileURLToPath(import.meta.url))));
+export const jsdir = toPosix(relative(cwd(), dirname(dirname(fileURLToPath(import.meta.url)))));
 
 export function toPosix(p: string) {
     return p.split(sep).join(posix.sep);
@@ -38,4 +38,3 @@ export function traverseCSS(manifest: ViteManifest, component: ViteManifestEntry
 
     return css;
 }
-
