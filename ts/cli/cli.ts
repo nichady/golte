@@ -3,7 +3,7 @@
 import { build, UserConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
-import { cwd } from "node:process";
+import { cwd, argv } from "node:process";
 import { join, relative, basename, dirname } from "node:path";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -66,6 +66,7 @@ async function extract(inputConfig: Config): Promise<ExtractedConfig> {
         outDir: "build/",
         package: false,
         assets: "golte_",
+        mode: "prod",
         vite: {
             build: {
                 cssCodeSplit: true,
@@ -102,24 +103,28 @@ async function extract(inputConfig: Config): Promise<ExtractedConfig> {
         packageName = config.package;
     }
 
+    let mode = argv[2];
+    if (mode !== "dev" && mode !== "prod") mode = config.mode;
+
     return {
         ...config,
         assets,
         components,
         package: packageName,
+        dev: mode === "dev",
     }
 }
 
 async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
     const viteConfig: UserConfig = {
+        mode: config.dev ? "development" : "production",
         build: {
             ssr: false,
             outDir: join(config.outDir, "client"),
-            minify: false,
             manifest: true,
-            sourcemap: true,
-            // https://github.com/vitejs/vite/issues/4454
-            // lib: {},
+            minify: !config.dev,
+            sourcemap: config.dev,
+            // lib: {}, // https://github.com/vitejs/vite/issues/4454
             rollupOptions: {
                 // for some reason, vite sets this to false when using rollupOptions.input instead of lib.entry
                 preserveEntrySignatures: "exports-only",
@@ -203,13 +208,13 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
                 golteAssets: `"${config.assets}"`,
             })
         ],
+        mode: config.dev ? "development" : "production",
         build: {
             ssr: true,
             outDir: join(config.outDir, "server/"),
-            minify: false,
-            sourcemap: true,
-            // https://github.com/vitejs/vite/issues/4454
-            // lib: {},
+            minify: !config.dev,
+            sourcemap: config.dev,
+            // lib: {}, // https://github.com/vitejs/vite/issues/4454
             rollupOptions: {
                 input: [
                     `./${jsdir}/server/render.js`,

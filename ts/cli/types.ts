@@ -16,6 +16,7 @@ export type ViteManifestEntry = {
 export type ExtractedConfig = {
     components: ComponentFile[];
     package: string;
+    dev: boolean;
 
     template: string;
     outDir: string;

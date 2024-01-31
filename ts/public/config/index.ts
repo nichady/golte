@@ -51,7 +51,18 @@ export type Config = {
     assets?: string;
 
     /**
+     * Whether to build in development mode or production mode.
+     * In development mode, sourcemaps will be built, and render error stacktraces will be passed to error components.
+     * In production mode, javascript will be minified, and render error stacktraces will not be visible.
+     * 
+     * This can be overwritten by running "golte dev" or "golte prod".
+     * 
+     * @default "prod"
+     */
+    mode?: "dev" | "prod";
+
+    /**
      * Pass additional configuration options to Vite.
      */
     vite?: UserConfig;
-}
+};

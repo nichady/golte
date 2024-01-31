@@ -14,10 +14,16 @@ const ssrWrapper: ServerComponent = {
         try {
             return ServerNode.$$render(result, props, bindings, slots, context);
         } catch (err) {
+            let message = "Internal Error";
+            if (import.meta.env.MODE === "development") {
+                message = (err instanceof Error && err.stack) ? err.stack : String(err);
+            }
+
             const errProps = {
                 status: 500,
-                message: (err instanceof Error && err.stack) ? err.stack : String(err),
+                message,
             };
+            
             getContext<Function>(handleError)({ index: props.index, props: errProps });
             return props.node.content.errPage.$$render(result, errProps, bindings, slots, context);
         }
