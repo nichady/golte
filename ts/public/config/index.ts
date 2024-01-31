@@ -39,7 +39,7 @@ export type Config = {
      * If set to true, a package will be generated with the name set to the last portion of outDir.
      * If set to a string, a package will be generated with name set to that string.
      * 
-     * @default false
+     * @default true
      */
     package?: boolean | string;
 

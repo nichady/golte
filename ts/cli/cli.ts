@@ -64,7 +64,7 @@ async function extract(inputConfig: Config): Promise<ExtractedConfig> {
         template: "web/app.html",
         srcDir: "web/",
         outDir: "build/",
-        package: false,
+        package: true,
         assets: "golte_",
         mode: "prod",
         vite: {
