@@ -4,7 +4,7 @@ import { build, UserConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 import { cwd } from "node:process";
-import { join, relative, basename } from "node:path";
+import { join, relative, basename, dirname } from "node:path";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { build as esbuild } from "esbuild";
@@ -117,6 +117,7 @@ async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
             outDir: join(config.outDir, "client"),
             minify: false,
             manifest: true,
+            sourcemap: true,
             // https://github.com/vitejs/vite/issues/4454
             // lib: {},
             rollupOptions: {
@@ -133,6 +134,9 @@ async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
                     entryFileNames: `${config.assets}/entries/[name]-[hash].js`,
                     chunkFileNames: `${config.assets}/chunks/[name]-[hash].js`,
                     assetFileNames: `${config.assets}/assets/[name]-[hash].[ext]`,
+                    sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
+                        return "file://" + join(dirname(sourcemapPath), relativeSourcePath);
+                    },
                 }
             },
         },
@@ -203,6 +207,7 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
             ssr: true,
             outDir: join(config.outDir, "server/"),
             minify: false,
+            sourcemap: true,
             // https://github.com/vitejs/vite/issues/4454
             // lib: {},
             rollupOptions: {
@@ -215,6 +220,13 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
                     entryFileNames: "[name].js",
                     chunkFileNames: "chunks/[name]-[hash].js",
                     assetFileNames: `${config.assets}/assets/[name]-[hash].[ext]`,
+                    sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
+                        // using relative path instead
+                        // absolute path is broken; for some reason leading "/" is omitted
+                        // might have something to do with goja
+                        sourcemapPath = relative(cwd(), sourcemapPath);
+                        return join(dirname(sourcemapPath), relativeSourcePath);
+                    },
                 }
             },
         },
