@@ -9,11 +9,15 @@ import (
 	"github.com/nichady/golte/render"
 )
 
+// Props is an alias for map[string]any. It exists for documentation purposes.
+// Props must be JSON-serializable when passing to fuctions defined in this package.
+type Props = map[string]any
+
 // New constructs a golte middleware from the given filesystem.
 // The root of the filesystem should be the golte build directory.
 //
 // The returned middleware is used to add a render context to incoming requests.
-// It will allow you to use Layout, AddLayout, Page, RenderPage, and Render.
+// It will allow you to use [Layout], [AddLayout], [Page], and [RenderPage].
 // It should be mounted on the root of your router.
 // The middleware should not be mounted on routes other than the root.
 func New(fsys fs.FS) func(http.Handler) http.Handler {
@@ -53,9 +57,9 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 	}
 }
 
-// Layout returns a middleware that calls AddLayout.
+// Layout returns a middleware that calls [AddLayout].
 // Use this when there are no props needed to render the component.
-// If complex logic and props are needed, instead use AddLayout.
+// If you need to pass props, use [AddLayout] instead.
 func Layout(component string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,9 +69,9 @@ func Layout(component string) func(http.Handler) http.Handler {
 	}
 }
 
-// Error returns a middleware that calls SetError.
+// Error returns a middleware that calls [SetError].
 // Use this when there are no props needed to render the component.
-// If complex logic and props are needed, instead use SetError.
+// If you need to pass props, use [SetError] instead.
 func Error(component string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,9 +81,9 @@ func Error(component string) func(http.Handler) http.Handler {
 	}
 }
 
-// Page returns a handler that calls RenderPage.
+// Page returns a handler that calls [RenderPage].
 // Use this when there are no props needed to render the component.
-// If complex logic and props are needed, instead use RenderPage.
+// If you need to pass props, use [RenderPage] instead.
 func Page(component string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		RenderPage(w, r, component, nil)
@@ -87,8 +91,9 @@ func Page(component string) http.HandlerFunc {
 }
 
 // AddLayout appends the component to the request.
-// The props must consist only of values that can be serialized as JSON.
-func AddLayout(r *http.Request, component string, props map[string]any) {
+// Layouts consist of any components with a <slot>.
+// Calling this multiple times on the same request will nest layouts.
+func AddLayout(r *http.Request, component string, props Props) {
 	rctx := GetRenderContext(r)
 	rctx.Components = append(rctx.Components, render.Entry{
 		Comp:  component,
@@ -97,13 +102,16 @@ func AddLayout(r *http.Request, component string, props map[string]any) {
 }
 
 // SetError sets the error page for the request.
+// Calling this multiple times on the same request will overrite the previous error page.
 func SetError(r *http.Request, component string) {
 	GetRenderContext(r).ErrPage = component
 }
 
-// RenderPage renders the specified component along with any layouts.
-// The props must consist only of values that can be serialized as JSON.
-func RenderPage(w http.ResponseWriter, r *http.Request, component string, props map[string]any) {
+// RenderPage renders the specified component.
+// If any layouts were added previously, then each subsequent layout will
+// go in the <slot> of the previous layout. The page will be in the <slot>
+// of the last layout.
+func RenderPage(w http.ResponseWriter, r *http.Request, component string, props Props) {
 	rctx := GetRenderContext(r)
 	rctx.Components = append(rctx.Components, render.Entry{
 		Comp:  component,
@@ -116,7 +124,7 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 // It will also write the status code to the header.
 func RenderError(w http.ResponseWriter, r *http.Request, message string, status int) {
 	rctx := GetRenderContext(r)
-	entry := render.Entry{Comp: rctx.ErrPage, Props: map[string]any{
+	entry := render.Entry{Comp: rctx.ErrPage, Props: Props{
 		"message": message,
 		"status":  status,
 	}}

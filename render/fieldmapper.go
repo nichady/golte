@@ -7,7 +7,7 @@ import (
 	"github.com/dop251/goja/parser"
 )
 
-// fieldMapper implements goja.FieldNameMapper
+// fieldMapper implements [goja.FieldNameMapper]
 // it maps fields using the specified tag if set, or simply the field name if tag is not set
 type fieldMapper struct {
 	tag string
