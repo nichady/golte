@@ -90,14 +90,14 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	for _, v := range data.Entries {
 		comp := r.renderfile.Manifest[v.Comp]
 		resp.Entries = append(resp.Entries, responseEntry{
-			File:  "/" + comp.Client,
+			File:  comp.Client,
 			Props: v.Props,
 			CSS:   comp.CSS,
 		})
 	}
 
 	resp.ErrPage = responseEntry{
-		File: "/" + r.renderfile.Manifest[data.ErrPage].Client,
+		File: r.renderfile.Manifest[data.ErrPage].Client,
 		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
 	}
 

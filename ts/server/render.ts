@@ -45,7 +45,7 @@ export function Render(entries: Entry[], contextData: ContextData, errPage: stri
         const c = Manifest[e.Comp];
         if (!c) throw new Error(`"${e.Comp}" is not a component`);
         serverNodes.push({ comp: c.server, props: e.Props, errPage: err.server });
-        clientNodes.push({ comp: `/${c.Client}`, props: e.Props, errPage: `/${err.Client}` });
+        clientNodes.push({ comp: `${c.Client}`, props: e.Props, errPage: `${err.Client}` });
         for (const path of c.CSS) {
             stylesheets.add(path);
         }
@@ -61,7 +61,7 @@ export function Render(entries: Entry[], contextData: ContextData, errPage: stri
     let { html, head } = Root.render({ nodes: serverNodes, contextData }, { context });
 
     for (const path of stylesheets) {
-        head += `\n<link href="/${path}" rel="stylesheet">`;
+        head += `\n<link href="${path}" rel="stylesheet">`;
     }
 
     if (error) {
@@ -72,7 +72,7 @@ export function Render(entries: Entry[], contextData: ContextData, errPage: stri
         <script>
             (async function () {
                 const target = document.currentScript.parentElement;
-                const { hydrate } = await import("/${hydrate}");
+                const { hydrate } = await import("${hydrate}");
                 await hydrate(target, ${stringify(clientNodes)}, ${stringify(contextData)});
             })();
         </script>

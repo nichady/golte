@@ -183,10 +183,10 @@ async function createManifest(components: ComponentFile[], manifest: ViteManifes
 
         str += `"${toPosix(name)}": {\n`;
         str += `server: component_${i},\n`;
-        str += `Client: "${component.file}",\n`;
+        str += `Client: "/${component.file}",\n`;
         str += `CSS: [\n`;
         for (const css of traverseCSS(manifest, component)) {
-            str += `"${css}",\n`;
+            str += `"/${css}",\n`;
         }
         str += `],\n`;
         str += `},\n`;
@@ -203,7 +203,7 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
             //@ts-ignore for some reason there is typescript error here
             replace({
                 golteImports: await createImports(config.components),
-                golteHydrate: `"${client.manifest[jsdir + "/client/hydrate.js"].file}"`,
+                golteHydrate: `"/${client.manifest[jsdir + "/client/hydrate.js"].file}"`,
                 golteManifest: await createManifest(config.components, client.manifest),
                 golteAssets: `"${config.assets}"`,
             })
