@@ -35,7 +35,8 @@ npm init
 
 Set `{"type": "module"}` in `package.json`.
 
-Install golte:
+Install Golte:
+
 ```sh
 go get -u github.com/nichady/golte
 npm install golte@latest
@@ -59,6 +60,16 @@ web/
 main.go
 ...(any other files)
 ```
+
+We can run `npx golte` to generate a `build/` directory.
+By default, Golte will use `web/app.html` as the template file and search for `.svelte` files inside the `web/` directory (this can be changed in the config file).
+
+Each `.svelte` file will be able to be rendered inside Go code by name. The name of the components are path of the file relative to the source directory (`web/`), without the file extension.
+
+For example:
+-  `web/page/home.svelte` => `page/home`
+-  `web/layout/main.svelte` => `layout/main`
+-  etc...
 
 Suppose we want to make a program with the following requirements:
 1. Five routes: `/`, `/about`, `/contact`, `/login`, and `/profile`.
@@ -142,6 +153,33 @@ For all of the possible configuration options, see [`golte/config`](ts/public/co
 
 **Note: You must set `{"type": "module"}` in your `package.json`** for config file to work.
 
+## JavaScript Exports 
+
+The `golte` npm package provides some exports that you can use in your components:
+
+### `golte`
+
+```typescript
+import { preload } from "golte";
+```
+```svelte
+<a href="route1" use:preload>Route1</a>
+<a href="route2" use:preload={"mount"}>Route2</a>
+```
+
+`preload` - a Svelte action that can be used in `<a>` tags. Using this turns the `<a>` into a Golte link, stopping the page from reloading when clicked.
+
+### `golte/stores`
+
+```typescript
+import { url } from "golte/stores";
+```
+```svelte
+<p>The current url is {$url.href}</p>
+```
+
+`url` - a Svelte store that describes the current URL of the page
+
 ## Why?
 
 I wanted a way to create web apps in Svelte while using Go as the backend language to create a single, self-contained binary. One option would be to embed a Svelte SPA into a Go binary. However, that solution lacks SSR capabilities and won't work when JavaScript is disabled.
@@ -149,3 +187,5 @@ I wanted a way to create web apps in Svelte while using Go as the backend langua
 I discovered [Bud](https://github.com/livebud/bud), but it forces you to structure your project in a specific way rather than treating your program as a normal Go app with a main() function and your own router. It also requires you to install their own cli.
 
 There is also [Inertia.js](https://github.com/inertiajs/inertia), but it requires NodeJS for SSR, and I don't like how layouts need to specified inside the page components.
+
+So, I created Golte to solve these problems.
