@@ -5,9 +5,10 @@
 ## Features
 - SSR + Hydration
 - NodeJS not required in production
-- Layouts as middleware
+- Layouts as middleware (they can be nested)
 - Custom error pages
 - Works with Go stdlib, `gorilla/mux`, `chi`, `gin`, `echo`, or any router that allows access to the underlying `http.ResponseWriter` and `*http.Request`
+- Can compile to single, self-contained executable
 
 ## How does it work?
 
@@ -23,7 +24,7 @@
 
 ### Prerequisites
 
-Make sure [Go](https://go.dev) and [NodeJS](https://nodejs.org) are installed.
+Make sure [Go](https://go.dev) and [NodeJS](https://nodejs.org) are installed (NodeJS is only needed during development).
 
 ### Setting up project
 
@@ -38,7 +39,7 @@ Set `{"type": "module"}` in `package.json`.
 Install Golte:
 
 ```sh
-go get -u github.com/nichady/golte
+go get github.com/nichady/golte@latest
 npm install golte@latest
 # Make sure that the Go module and npm package are the same version.
 ```
@@ -124,7 +125,7 @@ func main() {
 
 For more comprehensive examples using other routers, passing props, and nesting layouts, see [_examples](_examples).
 
-For a list of all the possible functions, see the [package docs](https://pkg.go.dev/github.com/nichady/golte#section-documentation).
+For a list of all the possible functions, see the [package docs](https://pkg.go.dev/github.com/nichady/golte).
 
 ## Configuration
 
@@ -158,7 +159,7 @@ If you wish to use TypeScript or other preprocessors in your Svelte files, you c
 
 The `golte` npm package provides some exports that you can use in your components:
 
-### `golte`
+### [`golte`](ts/public/index.ts)
 
 ```typescript
 import { preload } from "golte";
@@ -170,7 +171,7 @@ import { preload } from "golte";
 
 `preload` - a Svelte action that can be used in `<a>` tags. Using this turns the `<a>` into a Golte link, stopping the page from reloading when clicked.
 
-### `golte/stores`
+### [`golte/stores`](ts/public/stores/index.ts)
 
 ```typescript
 import { url } from "golte/stores";
@@ -185,7 +186,7 @@ import { url } from "golte/stores";
 
 I wanted a way to create web apps in Svelte while using Go as the backend language to create a single, self-contained binary. One option would be to embed a Svelte SPA into a Go binary. However, that solution lacks SSR capabilities and won't work when JavaScript is disabled.
 
-I discovered [Bud](https://github.com/livebud/bud), but it forces you to structure your project in a specific way rather than treating your program as a normal Go app with a main() function and your own router. It also requires you to install their own cli.
+I discovered [Bud](https://github.com/livebud/bud), but it forces you to structure your project in a specific way rather than treating your program as a normal Go app with a main() function and your own router. It also requires you to install their own cli. It also doesn't support layouts (I think).
 
 There is also [Inertia.js](https://github.com/inertiajs/inertia), but it requires NodeJS for SSR, and I don't like how layouts need to specified inside the page components.
 
