@@ -149,9 +149,10 @@ export default {
 } satisfies Config;
 ```
 
-For all of the possible configuration options, see [`golte/config`](ts/public/config/index.ts).
+For all of the possible configuration options, see [`golte/config`](ts/public/config/index.ts).<br>
+**Note: You must set `{"type": "module"}` in your `package.json` for config file to work.**
 
-**Note: You must set `{"type": "module"}` in your `package.json`** for config file to work.
+If you wish to use TypeScript or other preprocessors in your Svelte files, you can add a normal `svelte.config.js` file to your project root.
 
 ## JavaScript Exports 
 
