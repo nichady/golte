@@ -1,0 +1,12 @@
+{
+  "name": "examples",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "routers": "golte && go run ./routers"
+  },
+  "dependencies": {
+    "golte": "file:..",
+    "svelte": "^4.2.9"
+  }
+}
