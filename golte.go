@@ -48,6 +48,8 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
 				Renderer: renderer,
 				ErrPage:  "$$$GOLTE_DEFAULT_ERROR$$$",
+
+				csr: r.Header["Golte"] != nil,
 				scdata: render.SvelteContextData{
 					URL: scheme + "://" + r.Host + r.URL.String(),
 				},
@@ -94,7 +96,7 @@ func Page(component string) http.HandlerFunc {
 // Layouts consist of any components with a <slot>.
 // Calling this multiple times on the same request will nest layouts.
 func AddLayout(r *http.Request, component string, props Props) {
-	rctx := GetRenderContext(r)
+	rctx := MustGetRenderContext(r)
 	rctx.Components = append(rctx.Components, render.Entry{
 		Comp:  component,
 		Props: props,
@@ -102,9 +104,10 @@ func AddLayout(r *http.Request, component string, props Props) {
 }
 
 // SetError sets the error page for the request.
+// Errors consist of any components that take the "message" and "status" props.
 // Calling this multiple times on the same request will overrite the previous error page.
 func SetError(r *http.Request, component string) {
-	GetRenderContext(r).ErrPage = component
+	MustGetRenderContext(r).ErrPage = component
 }
 
 // RenderPage renders the specified component.
@@ -112,7 +115,7 @@ func SetError(r *http.Request, component string) {
 // go in the <slot> of the previous layout. The page will be in the <slot>
 // of the last layout.
 func RenderPage(w http.ResponseWriter, r *http.Request, component string, props Props) {
-	rctx := GetRenderContext(r)
+	rctx := MustGetRenderContext(r)
 	rctx.Components = append(rctx.Components, render.Entry{
 		Comp:  component,
 		Props: props,
@@ -121,9 +124,10 @@ func RenderPage(w http.ResponseWriter, r *http.Request, component string, props 
 }
 
 // RenderError renders the current error page along with layouts.
+// The error componenet will receive "message" and "status" as props.
 // It will also write the status code to the header.
 func RenderError(w http.ResponseWriter, r *http.Request, message string, status int) {
-	rctx := GetRenderContext(r)
+	rctx := MustGetRenderContext(r)
 	entry := render.Entry{Comp: rctx.ErrPage, Props: Props{
 		"message": message,
 		"status":  status,
