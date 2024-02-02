@@ -1,0 +1,17 @@
+name: Bump publish to npm
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+      - uses: actions/setup-node@v4.0.1
+      - run: npm ci
+      - run: npm run build:js
+      - uses: JS-DevTools/npm-publish@v3.0.1
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
