@@ -3,6 +3,7 @@ module examples
 go 1.21.0
 
 require (
+	github.com/gin-gonic/gin v1.9.1
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/gorilla/mux v1.8.1
 	github.com/labstack/echo/v4 v4.11.4
@@ -18,7 +19,6 @@ require (
 	github.com/dop251/goja_nodejs v0.0.0-20231022114343-5c1f9037c9ab // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.9.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.17.0 // indirect

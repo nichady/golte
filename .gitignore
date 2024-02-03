@@ -2,4 +2,4 @@
 /testdata/dist/
 /js/
 /_examples/node_modules/
-/_examples/build/
+/_examples/*/build/
