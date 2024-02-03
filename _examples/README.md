@@ -1,6 +1,6 @@
 # Golte Examples
 
-- [routers](routers) - the same app made using different routers; comment/uncomment inside main() to try different routers
+- [routers](routers/) - the same app made using different routers; comment/uncomment inside main() to try different routers
 
 ## Usage
 

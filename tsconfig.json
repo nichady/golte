@@ -2,13 +2,10 @@
   "compilerOptions": {
     "module": "Node16",
     "target": "ESNext",
-
     "strict": true,
     "checkJs": true, // jsdoc is used in svelte files instead of ts
-
     "sourceMap": true,
     "outDir": "js",
-    
     "types": [
       "vite/client", // for import.meta.env
     ],

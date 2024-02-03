@@ -1,4 +1,4 @@
-name: Bump publish to npm
+name: Publish to NPM
 
 on:
   push:

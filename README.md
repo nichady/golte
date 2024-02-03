@@ -123,7 +123,7 @@ func main() {
 }
 ```
 
-For more comprehensive examples using other routers, passing props, and nesting layouts, see [_examples](_examples).
+For more comprehensive examples using other routers, passing props, and nesting layouts, see [_examples](_examples/).
 
 For a list of all the possible functions, see the [package docs](https://pkg.go.dev/github.com/nichady/golte).
 
