@@ -209,6 +209,9 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
             })
         ],
         mode: config.dev ? "development" : "production",
+        ssr: {
+            noExternal: true,
+        },
         build: {
             ssr: true,
             outDir: join(config.outDir, "server/"),
