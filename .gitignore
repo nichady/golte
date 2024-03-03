@@ -3,3 +3,4 @@
 /js/
 /_examples/node_modules/
 /_examples/*/build/
+/_examples/*/*.db

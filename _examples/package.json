@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "routers": "cd routers && golte dev && go run ."
+    "routers": "cd routers && golte dev && go run .",
+    "blog": "cd blog && golte dev && go run ."
   },
   "dependencies": {
     "golte": "file:..",
