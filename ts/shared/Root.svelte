@@ -1,9 +1,8 @@
 <script>
     import { Node } from "./node-wrapper.js";
-    import { onMount, setContext } from "svelte";
-    import { golteContext} from "./keys.js";
+    import { onMount } from "svelte";
     import { get } from "svelte/store";
-    import { AppState } from "./appstate.js";
+    import { initState, state } from "./appstate.js";
 
     /** @type {import("./types.js").CompState[]} */
     export let nodes;
@@ -11,9 +10,8 @@
     /** @type {import("./types.js").ContextData} */
     export let contextData;
 
-    const state = new AppState(contextData.URL, nodes);
+    initState(contextData.URL, nodes);
     const { node } = state;
-    setContext(golteContext, state);
 
     onMount(() => {
         history.replaceState(get(state.url).href, "");

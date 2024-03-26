@@ -13,61 +13,64 @@ type ResponseEntry = {
     CSS: string[],
 }
 
-class ServerAppState {
+export let state: {
     url: Writable<URL>;
     node: StoreList<CompState>;
-    
-    constructor(url: string, nodes: CompState[]) {
-        this.url = writable(new URL(url));
-        this.node = fromArray(nodes);
-    }
-}
 
-class ClientAppState extends ServerAppState {
-    hrefMap: Record<string, Promise<CompState[]>> = {};
+    // client only properties below
+    hrefMap: Record<string, Promise<CompState[]>>;
+    update: (href: string) => Promise<void>;
+};
 
-    constructor(url: string, nodes: CompState[]) {
-        super(url, nodes);
-        this.hrefMap[get(this.url).href] = new Promise(r => r(nodes));
-    }
+export function initState(url: string, nodes: CompState[]) {
+    state = {} as typeof state;
+    
+    state.url = writable(new URL(url));
+    state.node = fromArray(nodes);
 
-    async update(href: string) {
-        this.url.set(new URL(href))
+    if (!import.meta.env.SSR) {
+        state.hrefMap = {
+            [url]: new Promise(r => r(nodes)),
+        };
     
-        const array = await (this.hrefMap[href] ?? load(href));
-    
-        // this loop replaces the first differentiated node from after onto before
-        // the reason this is done instead of simply replacing the first node is so we don't rerender unnecessary nodes
-        // this allows for data persistence in already rendered nodes
-        let before = this.node;
-        let after = fromArray(array);
-        while (true) {
-            const bval = get(before);
-            const aval = get(after);
-    
-            if (!bval && !aval) break; // both nodes are null - end of list, no diff
-    
-            const bcomp = bval?.content.comp;
-            const acomp = aval?.content.comp;
-    
-            if (bcomp === acomp) { // nodes are same component - pass
-                // neiter bval nor aval can be null at this point - typescript isn't smart enough to figure that out
-    
-                //@ts-ignore
-                before = bval.next;
-    
-                //@ts-ignore
-                after = aval.next;
-            } else { // nodes are different components - replace
-                before.set(aval);
-                break;
+        state.update = async (href: string) => {
+            state.url.set(new URL(href))
+        
+            const array = await (state.hrefMap[href] ?? load(href));
+        
+            // this loop replaces the first differentiated node from after onto before
+            // the reason this is done instead of simply replacing the first node is so we don't rerender unnecessary nodes
+            // this allows for data persistence in already rendered nodes
+            let before = state.node;
+            let after = fromArray(array);
+            while (true) {
+                const bval = get(before);
+                const aval = get(after);
+        
+                if (!bval && !aval) break; // both nodes are null - end of list, no diff
+        
+                const bcomp = bval?.content.comp;
+                const acomp = aval?.content.comp;
+        
+                if (bcomp === acomp) { // nodes are same component - pass
+                    // neiter bval nor aval can be null at this point - typescript isn't smart enough to figure that out
+        
+                    //@ts-ignore
+                    before = bval.next;
+        
+                    //@ts-ignore
+                    after = aval.next;
+                } else { // nodes are different components - replace
+                    before.set(aval);
+                    break;
+                }
             }
         }
     }
 }
 
-export const AppState: typeof ClientAppState = import.meta.env.SSR ? ServerAppState : ClientAppState as any;
-export type AppState = ClientAppState;
+// export const AppState: typeof ClientAppState = import.meta.env.SSR ? ServerAppState : ClientAppState as any;
+// export type AppState = ClientAppState;
 
 export async function load(href: string) {
     const headers = { "Golte": "true" };

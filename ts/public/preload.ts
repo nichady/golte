@@ -1,13 +1,13 @@
-import { getContext } from "svelte";
 import { Action } from "svelte/action";
-import { golteContext } from "../shared/keys.js";
-import { AppState, load } from "../shared/appstate.js";
+import { load, state } from "../shared/appstate.js";
 
 type Preload = "mount" | "tap" | "hover";
 
-export const preload = (a: HTMLAnchorElement, preload: Preload = "hover") => {
-    const state: AppState = getContext(golteContext);
-
+/**
+ * A svelte action to use inside <a> tags.
+ * Will cause the link to preload and render on the client.
+ */
+export const preload = ((a: HTMLAnchorElement, preload: Preload = "hover") => {
     async function loadAnchor() {
         if (a.origin !== location.origin) return;
         if (a.href in state.hrefMap) return;
@@ -27,7 +27,4 @@ export const preload = (a: HTMLAnchorElement, preload: Preload = "hover") => {
         await state.update(a.href);
         history.pushState(a.href, "", a.href);
     });
-};
-
-// this only serves as a typecheck for now until typescript supports "satisfies" for functions directly
-let _ = preload satisfies Action<HTMLAnchorElement, Preload | undefined>;
+}) satisfies Action<HTMLAnchorElement, Preload | undefined>;
