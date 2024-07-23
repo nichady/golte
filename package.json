@@ -35,8 +35,14 @@
     "ts"
   ],
   "exports": {
-    ".": "./js/public/index.js",
-    "./*": "./js/public/*/index.js"
+    ".": {
+      "types": "./ts/public/index.ts",
+      "import": "./js/public/index.js"
+    },
+    "./*": {
+      "types": "./ts/public/*/index.ts",
+      "import": "./js/public/*/index.js"
+    }
   },
   "typesVersions": {
     "*": {
