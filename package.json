@@ -1,6 +1,6 @@
 {
   "name": "golte",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "Render Svelte components in your Go http handlers.",
   "repository": "github:nichady/golte",
   "keywords": [
