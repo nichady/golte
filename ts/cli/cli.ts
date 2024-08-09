@@ -118,6 +118,7 @@ async function extract(inputConfig: Config): Promise<ExtractedConfig> {
 async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
     const viteConfig: UserConfig = {
         mode: config.dev ? "development" : "production",
+        base: config.assets,
         build: {
             ssr: false,
             outDir: join(config.outDir, "client"),
@@ -136,9 +137,9 @@ async function buildClient(config: ExtractedConfig): Promise<ClientBuild> {
                 ],
                 output: {
                     format: "es",
-                    entryFileNames: `${config.assets}/entries/[name]-[hash].js`,
-                    chunkFileNames: `${config.assets}/chunks/[name]-[hash].js`,
-                    assetFileNames: `${config.assets}/assets/[name]-[hash].[ext]`,
+                    entryFileNames: "entries/[name]-[hash].js",
+                    chunkFileNames: "chunks/[name]-[hash].js",
+                    assetFileNames: "assets/[name]-[hash].[ext]",
                     sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
                         return pathToFileURL(join(dirname(sourcemapPath), relativeSourcePath)).href;
                     },
@@ -175,7 +176,7 @@ async function createImports(components: ComponentFile[]) {
     return str;
 }
 
-async function createManifest(components: ComponentFile[], manifest: ViteManifest) {
+async function createManifest(components: ComponentFile[], manifest: ViteManifest, base: string) {
     let str = `{\n`;
     for (const i in components) {
         const { name, path } = components[i];
@@ -183,10 +184,10 @@ async function createManifest(components: ComponentFile[], manifest: ViteManifes
 
         str += `"${toPosix(name)}": {\n`;
         str += `server: component_${i},\n`;
-        str += `Client: "/${component.file}",\n`;
+        str += `Client: "${join("/", base, component.file)}",\n`;
         str += `CSS: [\n`;
         for (const css of traverseCSS(manifest, component)) {
-            str += `"/${css}",\n`;
+            str += `"${join("/", base, css)}",\n`;
         }
         str += `],\n`;
         str += `},\n`;
@@ -203,8 +204,8 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
             //@ts-ignore for some reason there is typescript error here
             replace({
                 golteImports: await createImports(config.components),
-                golteHydrate: `"/${client.manifest[jsdir + "/client/hydrate.js"].file}"`,
-                golteManifest: await createManifest(config.components, client.manifest),
+                golteHydrate: `"` + join("/", config.assets, client.manifest[jsdir + "/client/hydrate.js"].file) + `"`,
+                golteManifest: await createManifest(config.components, client.manifest, config.assets),
                 golteAssets: `"${config.assets}"`,
             })
         ],
@@ -212,6 +213,7 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
         ssr: {
             noExternal: true,
         },
+        base: config.assets,
         build: {
             ssr: true,
             outDir: join(config.outDir, "server/"),
@@ -227,7 +229,7 @@ async function buildServer(config: ExtractedConfig, client: ClientBuild) {
                     format: "cjs",
                     entryFileNames: "[name].js",
                     chunkFileNames: "chunks/[name]-[hash].js",
-                    assetFileNames: `${config.assets}/assets/[name]-[hash].[ext]`,
+                    assetFileNames: "assets/[name]-[hash].[ext]",
                     sourcemapPathTransform(relativeSourcePath, sourcemapPath) {
                         // using relative path instead
                         // absolute path is broken; for some reason leading "/" is omitted
