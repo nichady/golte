@@ -36,8 +36,13 @@ type Renderer struct {
 
 // New constructs a renderer from the given FS.
 func New(serverDir *fs.FS, clientDir *fs.FS, ifSSR bool) *Renderer {
+	mode := "SSR"
+	if !ifSSR {
+		mode = "CSR"
+	}
+
 	r := &Renderer{
-		mode:      "SSR",
+		mode:      mode,
 		serverDir: serverDir,
 		clientDir: clientDir,
 		template:  template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),
@@ -89,11 +94,10 @@ type RenderData struct {
 
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	if r.mode != "SSR" {
-		return fmt.Errorf("invalid mode: %s", r.mode)
+	if r.mode == "SSR" {
+		fmt.Println("Rendering using SSR Mode")
 	}
 
-	fmt.Println("Rendering using SSR Mode")
 	entries := make([]*Entry, len(data.Entries))
 	for i := range data.Entries {
 		entries[i] = &data.Entries[i]
@@ -121,16 +125,18 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 
 	html := buf.String()
-	resources, err := extractResourcePaths(&html)
-	if err != nil {
-		return err
-	}
+	if r.mode == "SSR" {
+		resources, err := extractResourcePaths(&html)
+		if err != nil {
+			return err
+		}
 
-	result.Resources = resources
+		result.Resources = resources
 
-	err = r.replaceResourcePaths(&html, resources)
-	if err != nil {
-		return err
+		err = r.replaceResourcePaths(&html, resources)
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = w.Write([]byte(html))
