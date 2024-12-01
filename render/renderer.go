@@ -41,6 +41,7 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	r.vmPool.New = func() interface{} {
 		vm := goja.New()
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
+			fmt.Printf("Loading file: %s\n", path)
 			return fs.ReadFile(*serverDir, path)
 		})
 		registry.Enable(vm)
@@ -53,6 +54,11 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 			panic(fmt.Sprintf("Failed to load render.js: %v", err))
 		}
 
+		// 檢查 RenderJSON 是否初始化
+		if renderfile.RenderJSON == nil {
+			panic("RenderJSON method in render.js is not initialized")
+		}
+
 		var infofile infofile
 		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
 			panic(fmt.Sprintf("Failed to load info.js: %v", err))
@@ -61,7 +67,7 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 		return vm
 	}
 
-	// Preload the first VM instance
+	// 預先初始化 VM
 	vm := r.vmPool.Get().(*goja.Runtime)
 	defer r.vmPool.Put(vm)
 
@@ -69,6 +75,11 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
 		panic(fmt.Sprintf("Failed to initialize render.js: %v", err))
 	}
+
+	if renderfile.RenderJSON == nil {
+		panic("RenderJSON method in render.js is not initialized")
+	}
+
 	r.renderfile = renderfile
 
 	var infofile infofile
@@ -86,6 +97,7 @@ type RenderData struct {
 	SCData  SvelteContextData
 }
 
+// Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	// 檢查 RenderJSON 是否初始化
 	if r.renderfile.RenderJSON == nil {
