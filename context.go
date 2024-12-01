@@ -46,7 +46,7 @@ func (r *RenderContext) Render(w http.ResponseWriter) {
 		SCData:  r.scdata,
 	}
 
-	if err := r.Renderer.Render(w, *data); err != nil {
+	if err := r.Renderer.Render(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
