@@ -259,34 +259,40 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
-			// 除錯：印出所有元素
-			// fmt.Printf("Found element: %s\n", n.Data)
-			// for _, attr := range n.Attr {
-			// 	fmt.Printf("  Attribute: %s=%s\n", attr.Key, attr.Val)
-			// }
-
+			var resourcePath string
 			switch n.Data {
 			case "script":
 				for _, attr := range n.Attr {
 					if attr.Key == "src" {
-						fmt.Printf("Found script: %s\n", attr.Val)
-						resources[attr.Val] = ResourceInfo{
-							TagName:    "script",
-							FullTag:    renderNode(n),
-							Attributes: extractAttributes(n.Attr),
-						}
+						resourcePath = attr.Val
+						break
 					}
 				}
 			case "link":
 				for _, attr := range n.Attr {
 					if attr.Key == "href" {
-						fmt.Printf("Found link: %s\n", attr.Val)
-						resources[attr.Val] = ResourceInfo{
-							TagName:    "link",
-							FullTag:    renderNode(n),
-							Attributes: extractAttributes(n.Attr),
-						}
+						resourcePath = attr.Val
+						break
 					}
+				}
+			}
+
+			if resourcePath != "" {
+				// 重建完整的 HTML 標籤
+				var attrs []string
+				for _, attr := range n.Attr {
+					attrs = append(attrs, fmt.Sprintf(`%s="%s"`, attr.Key, attr.Val))
+				}
+				fullTag := fmt.Sprintf("<%s %s>", n.Data, strings.Join(attrs, " "))
+				if n.Data == "link" {
+					fullTag = fmt.Sprintf("<%s %s/>", n.Data, strings.Join(attrs, " "))
+				}
+
+				fmt.Printf("Found %s: %s with tag: %s\n", n.Data, resourcePath, fullTag)
+				resources[resourcePath] = ResourceInfo{
+					TagName:    n.Data,
+					FullTag:    fullTag,
+					Attributes: extractAttributes(n.Attr),
 				}
 			}
 		}
