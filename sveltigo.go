@@ -9,13 +9,7 @@ import (
 	"github.com/HazelnutParadise/sveltigo/render"
 )
 
-var assetsDir *fs.FS
-
-func SetAssetsDir(dir *fs.FS) {
-	assetsDir = dir
-}
-
-var Mode string
+var Mode = RenderModeCSR
 
 const (
 	RenderModeCSR = "CSR"

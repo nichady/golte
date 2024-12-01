@@ -23,6 +23,7 @@ type Renderer struct {
 	mode       string
 	serverDir  *fs.FS
 	clientDir  *fs.FS
+	assetsDir  *fs.FS
 	renderfile renderfile
 	infofile   infofile
 	template   *template.Template
