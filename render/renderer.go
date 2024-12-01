@@ -300,6 +300,7 @@ package render
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"sync"
@@ -319,42 +320,6 @@ type Renderer struct {
 	template *template.Template
 	vm       *goja.Runtime
 	mtx      sync.Mutex
-}
-
-// New constructs a renderer from the given FS.
-// The FS should be the "server" subdirectory of the build output from "npx golte".
-// The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
-	tmpl := template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html")
-
-	vm := goja.New()
-	// vm.SetFieldNameMapper(fieldMapper{"json"})
-
-	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-		return fs.ReadFile(*serverDir, path)
-	}).Enable(vm)
-
-	console.Enable(vm)
-	url.Enable(vm)
-
-	var renderfile renderfile
-	err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
-	if err != nil {
-		panic(err)
-	}
-
-	var infofile infofile
-	err = vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
-	if err != nil {
-		panic(err)
-	}
-
-	return &Renderer{
-		template:   tmpl,
-		vm:         vm,
-		renderfile: renderfile,
-		infofile:   infofile,
-	}
 }
 
 type RenderData struct {
@@ -448,4 +413,36 @@ type responseEntry struct {
 
 type infofile struct {
 	Assets string
+}
+
+// New constructs a renderer from the given FS.
+func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
+	r := &Renderer{
+		template: template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),
+	}
+
+	r.vm = (func() *goja.Runtime {
+		vm := goja.New()
+		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
+			return fs.ReadFile(*serverDir, path)
+		})
+		registry.Enable(vm)
+
+		console.Enable(vm)
+		url.Enable(vm)
+
+		var renderfile renderfile
+		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
+			panic(fmt.Sprintf("Failed to load render.js: %v", err))
+		}
+
+		var infofile infofile
+		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
+			panic(fmt.Sprintf("Failed to load info.js: %v", err))
+		}
+
+		return vm
+	})()
+
+	return r
 }
