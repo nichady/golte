@@ -19,44 +19,55 @@ type Renderer struct {
 	infofile   infofile
 
 	template *template.Template
-	vm       *goja.Runtime
-	mtx      sync.Mutex
+	vmPool   sync.Pool
 }
 
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys fs.FS) *Renderer {
-	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
-
-	vm := goja.New()
-	vm.SetFieldNameMapper(fieldMapper{"json"})
-
-	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-		return fs.ReadFile(fsys, path)
-	}).Enable(vm)
-
-	console.Enable(vm)
-	url.Enable(vm)
-
-	var renderfile renderfile
-	err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
-	if err != nil {
-		panic(err)
+	r := &Renderer{
+		template: template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html"),
 	}
+
+	r.vmPool.New = func() interface{} {
+		vm := goja.New()
+		vm.SetFieldNameMapper(fieldMapper{"json"})
+
+		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
+			return fs.ReadFile(fsys, path)
+		})
+		registry.Enable(vm)
+
+		console.Enable(vm)
+		url.Enable(vm)
+
+		var renderfile renderfile
+		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
+			panic(err)
+		}
+
+		var infofile infofile
+		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
+			panic(err)
+		}
+
+		return vm
+	}
+
+	// 初始化第一個 VM 實例
+	vm := r.vmPool.Get().(*goja.Runtime)
+	var renderfile renderfile
+	vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
+	r.renderfile = renderfile
 
 	var infofile infofile
-	err = vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
-	if err != nil {
-		panic(err)
-	}
+	vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
+	r.infofile = infofile
 
-	return &Renderer{
-		template:   tmpl,
-		vm:         vm,
-		renderfile: renderfile,
-		infofile:   infofile,
-	}
+	r.vmPool.Put(vm)
+
+	return r
 }
 
 type RenderData struct {
@@ -66,11 +77,17 @@ type RenderData struct {
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) error {
+func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) error {
 	if !csr {
-		r.mtx.Lock()
-		result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
-		r.mtx.Unlock()
+		// 轉換 []Entry 到 []*Entry
+		entries := make([]*Entry, len(data.Entries))
+		for i := range data.Entries {
+			entries[i] = &data.Entries[i]
+		}
+
+		vm := r.vmPool.Get().(*goja.Runtime)
+		result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+		r.vmPool.Put(vm)
 
 		if err != nil {
 			return err
@@ -86,17 +103,20 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 		return r.template.Execute(w, result)
 	}
 
-	var resp csrResponse
+	resp := &csrResponse{
+		Entries: make([]*responseEntry, 0, len(data.Entries)),
+	}
+
 	for _, v := range data.Entries {
 		comp := r.renderfile.Manifest[v.Comp]
-		resp.Entries = append(resp.Entries, responseEntry{
+		resp.Entries = append(resp.Entries, &responseEntry{
 			File:  comp.Client,
 			Props: v.Props,
 			CSS:   comp.CSS,
 		})
 	}
 
-	resp.ErrPage = responseEntry{
+	resp.ErrPage = &responseEntry{
 		File: r.renderfile.Manifest[data.ErrPage].Client,
 		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
 	}
@@ -119,11 +139,11 @@ type result struct {
 }
 
 type renderfile struct {
-	Manifest map[string]struct {
+	Manifest map[string]*struct {
 		Client string
 		CSS    []string
 	}
-	Render func([]Entry, SvelteContextData, string) (result, error)
+	Render func([]*Entry, *SvelteContextData, string) (*result, error)
 }
 
 // Entry represents a component to be rendered, along with its props.
@@ -137,8 +157,8 @@ type SvelteContextData struct {
 }
 
 type csrResponse struct {
-	Entries []responseEntry
-	ErrPage responseEntry
+	Entries []*responseEntry
+	ErrPage *responseEntry
 }
 
 type responseEntry struct {
