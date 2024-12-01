@@ -23,7 +23,6 @@ type Renderer struct {
 	mode       string
 	serverDir  *fs.FS
 	clientDir  *fs.FS
-	assetsDir  *fs.FS
 	renderfile renderfile
 	infofile   infofile
 	template   *template.Template
@@ -35,12 +34,12 @@ type Renderer struct {
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(serverDir *fs.FS, clientDir *fs.FS, mode string) *Renderer {
 	// 讀取並印出 template.html 的內容
-	templateContent, err := fs.ReadFile(*serverDir, "template.html")
-	if err == nil {
-		fmt.Println("=== template.html content ===")
-		fmt.Println(string(templateContent))
-		fmt.Println("=== End of template.html ===")
-	}
+	// templateContent, err := fs.ReadFile(*serverDir, "template.html")
+	// if err == nil {
+	// 	fmt.Println("=== template.html content ===")
+	// 	fmt.Println(string(templateContent))
+	// 	fmt.Println("=== End of template.html ===")
+	// }
 
 	// 列出 fsys 中的所有檔案，包含完整路徑
 	fmt.Println("=== Listing all files in fsys ===")
@@ -111,7 +110,8 @@ type RenderData struct {
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	switch r.mode {
-	case "CSR":
+	case "SSR":
+		fmt.Println("rendering using SSR Mode")
 		// 轉換 []Entry 到 []*Entry
 		entries := make([]*Entry, len(data.Entries))
 		for i := range data.Entries {
@@ -169,7 +169,8 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 
 		_, err = w.Write([]byte(html))
 		return err
-	case "SSR":
+	case "CSR":
+		fmt.Println("rendering using CSR Mode")
 		resp := &csrResponse{
 			Entries: make([]*responseEntry, 0, len(data.Entries)),
 		}
@@ -388,9 +389,6 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 			continue
 		}
 
-		var content []byte
-		var err error
-
 		fmt.Printf("Processing resource: %s\n", path)
 
 		// 取得檔名
@@ -398,7 +396,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		filename := parts[len(parts)-1]
 
 		// 在所有子目錄中搜尋檔案
-		content, err = findFileInFS(*r.clientDir, filename)
+		content, err := findFileInFS(*r.clientDir, filename)
 		if err != nil {
 			fmt.Printf("Resource not found: %v\n", err)
 			continue
@@ -407,7 +405,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		var replacement string
 		switch resource.TagName {
 		case "script":
-			// 所有 script 都內聯，包括 module
+			// 所有 script 都內聯
 			replacement = "<script"
 			for key, value := range resource.Attributes {
 				if key != "src" {
@@ -418,16 +416,13 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
-				// 檢查是否為內部 CSS 資源
-				if strings.Contains(path, "/golte_/assets/") {
-					replacement = "<style data-source=\"" + filename + "\">\n" + string(content) + "\n</style>"
-					*html = strings.Replace(*html, resource.FullTag, replacement, 1)
-					replacementCount++
-				}
+				// CSS 內聯
+				replacement = "<style data-source=\"" + filename + "\">\n" + string(content) + "\n</style>"
 			}
 		}
 
-		if resource.TagName == "script" {
+		// 直接使用 FullTag 進行替換
+		if replacement != "" {
 			*html = strings.Replace(*html, resource.FullTag, replacement, 1)
 			replacementCount++
 		}
