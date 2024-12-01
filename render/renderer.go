@@ -87,6 +87,13 @@ type RenderData struct {
 }
 
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
+	// 檢查 RenderJSON 是否初始化
+	if r.renderfile.RenderJSON == nil {
+		http.Error(w, "Internal Server Error: RenderJSON not initialized", http.StatusInternalServerError)
+		fmt.Println("RenderJSON method is not initialized")
+		return fmt.Errorf("renderfile.RenderJSON is nil")
+	}
+
 	// 將 RenderData 轉換為 JSON
 	dataJSON, err := json.Marshal(data)
 	if err != nil {
@@ -104,10 +111,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 	defer r.vmPool.Put(vm)
 
-	// 將 JSON 傳遞到 JavaScript 環境
-	vm.Set("renderData", string(dataJSON))
-
-	// JavaScript 渲染邏輯
+	// 使用 RenderJSON 方法渲染
 	var result *result
 	r.mutex.Lock()
 	result, err = r.renderfile.RenderJSON(string(dataJSON))
