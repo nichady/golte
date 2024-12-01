@@ -299,7 +299,6 @@ func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry)
 			var err error
 			content, err = findFileInFS(*r.clientDir, filename)
 			if err != nil {
-				fileCache[filename] = nil
 				continue
 			}
 			fileCache[filename] = content
@@ -310,7 +309,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry)
 		case "script":
 			replacement = fmt.Sprintf("<script>%s</script>", string(content))
 		case "link":
-			if resource.Attributes["rel"] == "stylesheet" && content != nil {
+			if resource.Attributes["rel"] == "stylesheet" {
 				replacement = fmt.Sprintf("<style>%s</style>", string(content))
 			}
 		}
