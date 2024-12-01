@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -73,8 +74,21 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}
+	r.mtx.Unlock()
 
-	html := result.Head
+	if result.HasError {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "Golte")
+
+	var buf bytes.Buffer
+	err = r.template.Execute(&buf, result)
+	if err != nil {
+		return fmt.Errorf("template execution error: %w", err)
+	}
+	html := buf.String()
 	resources, err := extractResourcePaths(&html)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
@@ -86,18 +100,9 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
 		return fmt.Errorf("resource replacement error: %w", err)
 	}
-	result.Head = html
-	r.mtx.Unlock()
 
-	if result.HasError {
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Vary", "Golte")
-
-	return r.template.Execute(w, result)
-
+	w.Write([]byte(html))
+	return nil
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
