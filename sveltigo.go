@@ -49,7 +49,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 				Renderer: renderer,
 				ErrPage:  "$$$GOLTE_DEFAULT_ERROR$$$",
 
-				csr: r.Header["Golte"] != nil,
+				csr: false,
 				scdata: render.SvelteContextData{
 					URL: scheme + "://" + r.Host + r.URL.String(),
 				},
