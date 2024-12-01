@@ -89,14 +89,14 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	var resp csrResponse
 	for _, v := range data.Entries {
 		comp := r.renderfile.Manifest[v.Comp]
-		*resp.Entries = append(*resp.Entries, responseEntry{
+		resp.Entries = append(resp.Entries, responseEntry{
 			File:  comp.Client,
 			Props: v.Props,
 			CSS:   comp.CSS,
 		})
 	}
 
-	resp.ErrPage = &responseEntry{
+	resp.ErrPage = responseEntry{
 		File:  r.renderfile.Manifest[data.ErrPage].Client,
 		CSS:   r.renderfile.Manifest[data.ErrPage].CSS,
 		Props: map[string]any{},
@@ -138,8 +138,8 @@ type SvelteContextData struct {
 }
 
 type csrResponse struct {
-	Entries *[]responseEntry
-	ErrPage *responseEntry
+	Entries []responseEntry
+	ErrPage responseEntry
 }
 
 type responseEntry struct {
