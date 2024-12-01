@@ -141,9 +141,9 @@ import (
 // 	return err
 // }
 
-func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
+func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry) error {
 	fileCache := sync.Map{}
-	for _, entry := range resources {
+	for _, entry := range *resources {
 		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
 			continue
 		}
@@ -209,7 +209,7 @@ type ResourceEntry struct {
 	Resource ResourceInfo
 }
 
-func extractResourcePaths(htmlContent *string) ([]ResourceEntry, error) {
+func extractResourcePaths(htmlContent *string) (*[]ResourceEntry, error) {
 	doc, err := html.Parse(strings.NewReader(*htmlContent))
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ func extractResourcePaths(htmlContent *string) ([]ResourceEntry, error) {
 	}
 
 	traverse(doc)
-	return resources, nil
+	return &resources, nil
 }
 
 func extractAttributes(attrs []html.Attribute) map[string]string {

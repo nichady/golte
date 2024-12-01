@@ -15,7 +15,7 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	renderfile renderfile
+	renderfile *renderfile
 	infofile   infofile
 	clientDir  *fs.FS
 	template   *template.Template
@@ -55,21 +55,21 @@ func New(serverFS *fs.FS, clientFS *fs.FS) *Renderer {
 		clientDir:  clientFS,
 		template:   tmpl,
 		vm:         vm,
-		renderfile: renderfile,
+		renderfile: &renderfile,
 		infofile:   infofile,
 	}
 }
 
 type RenderData struct {
-	Entries []Entry
+	Entries *[]Entry
 	ErrPage string
 	SCData  SvelteContextData
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
+func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	r.mtx.Lock()
-	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
+	result, err := r.renderfile.Render(*data.Entries, data.SCData, data.ErrPage)
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}

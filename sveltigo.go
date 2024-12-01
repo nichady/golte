@@ -95,7 +95,7 @@ func Page(component string) http.HandlerFunc {
 // Calling this multiple times on the same request will nest layouts.
 func AddLayout(r *http.Request, component string, props Props) {
 	rctx := MustGetRenderContext(r)
-	rctx.Components = append(rctx.Components, render.Entry{
+	*rctx.Components = append(*rctx.Components, render.Entry{
 		Comp:  component,
 		Props: props,
 	})
@@ -114,7 +114,7 @@ func SetError(r *http.Request, component string) {
 // of the last layout.
 func RenderPage(w http.ResponseWriter, r *http.Request, component string, props Props) {
 	rctx := MustGetRenderContext(r)
-	rctx.Components = append(rctx.Components, render.Entry{
+	*rctx.Components = append(*rctx.Components, render.Entry{
 		Comp:  component,
 		Props: props,
 	})
@@ -130,7 +130,7 @@ func RenderError(w http.ResponseWriter, r *http.Request, message string, status 
 		"message": message,
 		"status":  status,
 	}}
-	rctx.Components = append(rctx.Components, entry)
+	*rctx.Components = append(*rctx.Components, entry)
 	rctx.Render(respWriterWrapper{w})
 }
 
