@@ -32,6 +32,15 @@ type Renderer struct {
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys *fs.FS) *Renderer {
+	// 列出 fsys 中的所有檔案
+	fs.WalkDir(*fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Found in fsys: %s\n", path)
+		return nil
+	})
+
 	r := &Renderer{
 		fsys:     fsys,
 		template: template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html"),
@@ -128,6 +137,17 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) err
 		err = r.replaceResourcePaths(&html, resources)
 		if err != nil {
 			return err
+		}
+
+		// 在寫入 response 之前，加入除錯資訊
+		fmt.Printf("SSR Mode: Resources found: %d\n", len(resources))
+		for path := range resources {
+			fmt.Printf("Resource: %s\n", path)
+		}
+
+		// 確保替換後的 HTML 不包含原始的外部資源引用
+		if strings.Contains(html, "/golte_/assets/") || strings.Contains(html, "/golte_/entries/") {
+			fmt.Println("Warning: External resources still present in HTML after replacement")
 		}
 
 		_, err = w.Write([]byte(html))
@@ -332,20 +352,26 @@ func findFileInFS(fsys fs.FS, twoLevelPath string) ([]byte, error) {
 
 // 修改 replaceResourcePaths 函數
 func (r *Renderer) replaceResourcePaths(html *string, resources map[string]ResourceInfo) error {
+	replacementCount := 0
 	for path, resource := range resources {
 		var content []byte
 		var err error
 
+		fmt.Printf("Processing resource: %s\n", path)
+
 		// 先嘗試完整路徑
 		content, err = fs.ReadFile(*r.fsys, strings.TrimPrefix(path, "/"))
 		if err != nil {
+			fmt.Printf("Full path not found: %v\n", err)
 			// 如果失敗，嘗試使用最後兩層路徑
 			parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
 			if len(parts) >= 2 {
 				twoLevelPath := strings.Join(parts[len(parts)-2:], "/")
+				fmt.Printf("Trying two-level path: %s\n", twoLevelPath)
 				content, err = findFileInFS(*r.fsys, twoLevelPath)
 			}
 			if err != nil {
+				fmt.Printf("Resource not found: %v\n", err)
 				continue
 			}
 		}
@@ -370,6 +396,8 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		}
 
 		*html = strings.Replace(*html, resource.FullTag, replacement, 1)
+		replacementCount++
 	}
+	fmt.Printf("Total replacements: %d\n", replacementCount)
 	return nil
 }
