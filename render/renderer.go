@@ -246,10 +246,17 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
+			// 除錯：印出所有元素
+			fmt.Printf("Found element: %s\n", n.Data)
+			for _, attr := range n.Attr {
+				fmt.Printf("  Attribute: %s=%s\n", attr.Key, attr.Val)
+			}
+
 			switch n.Data {
 			case "script":
 				for _, attr := range n.Attr {
 					if attr.Key == "src" {
+						fmt.Printf("Found script: %s\n", attr.Val)
 						resources[attr.Val] = ResourceInfo{
 							TagName:    "script",
 							FullTag:    renderNode(n),
@@ -260,6 +267,7 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 			case "link":
 				for _, attr := range n.Attr {
 					if attr.Key == "href" {
+						fmt.Printf("Found link: %s\n", attr.Val)
 						resources[attr.Val] = ResourceInfo{
 							TagName:    "link",
 							FullTag:    renderNode(n),
