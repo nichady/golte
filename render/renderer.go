@@ -326,10 +326,12 @@ func renderNode(n *html.Node) string {
 func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
 	fmt.Printf("Searching for file: %s\n", filename)
 
-	// 嘗試在 server 和 client 目錄中搜尋
+	// 嘗試在 server 和 client 的子目錄中搜尋
 	searchPaths := []string{
-		"server", // server 目錄
-		"client", // client 目錄
+		"server",         // server 目錄
+		"client/assets",  // client 的 assets 目錄
+		"client/entries", // client 的 entries 目錄
+		"client/chunks",  // client 的 chunks 目錄
 	}
 
 	for _, basePath := range searchPaths {
