@@ -449,7 +449,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 				// CSS 內聯
 				replacement = "<style"
 				for key, value := range resource.Attributes {
-					if key != "href" {
+					if key != "href" && key != "rel" {
 						replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
 					}
 				}
@@ -484,3 +484,4 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 // 2. 使用正則表達式來更精確地匹配完整的 HTML 標籤，並忽略屬性順序，以防止出現部分替換或錯誤替換的情況。
 // 3. 修正匹配邏輯以確保標籤內容包含必要的屬性或檔名，避免錯誤的替換。
 // 4. 確保替換後的標籤保留原始標籤的所有屬性，避免丟失可能重要的屬性。
+// 5. 確保在 CSS 內聯時不保留 "rel" 屬性。
