@@ -3,18 +3,15 @@ package render
 import (
 	"reflect"
 	"sync"
-
-	"github.com/dop251/goja/parser"
 )
 
 // fieldMapper implements [goja.FieldNameMapper]
 type fieldMapper struct {
-	tag string
-	// 使用 sync.Map 確保線程安全
+	tag      string
 	mappings sync.Map
 }
 
-// NewFieldMapper 創建一個新的 fieldMapper 實例
+// NewFieldMapper creates a new fieldMapper instance.
 func NewFieldMapper(tag string) *fieldMapper {
 	return &fieldMapper{
 		tag: tag,
@@ -29,23 +26,13 @@ func (m *fieldMapper) FieldName(t reflect.Type, field reflect.StructField) strin
 	}
 
 	tag, ok := field.Tag.Lookup(m.tag)
-	if !ok {
+	if !ok || tag == "" || tag == "-" {
 		m.mappings.Store(key, field.Name)
 		return field.Name
 	}
 
-	if tag == "" || tag == "-" {
-		m.mappings.Store(key, field.Name)
-		return field.Name
-	}
-
-	if parser.IsIdentifier(tag) {
-		m.mappings.Store(key, tag)
-		return tag
-	}
-
-	m.mappings.Store(key, field.Name)
-	return field.Name
+	m.mappings.Store(key, tag)
+	return tag
 }
 
 func (m *fieldMapper) MethodName(_ reflect.Type, method reflect.Method) string {
