@@ -32,7 +32,7 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(serverDir *fs.FS, clientDir *fs.FS, mode string) *Renderer {
+func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	// 讀取並印出 template.html 的內容
 	// templateContent, err := fs.ReadFile(*serverDir, "template.html")
 	// if err == nil {
@@ -55,7 +55,7 @@ func New(serverDir *fs.FS, clientDir *fs.FS, mode string) *Renderer {
 	fmt.Println("=== End of file listing ===")
 
 	r := &Renderer{
-		mode:      mode,
+		mode:      "SSR",
 		serverDir: serverDir,
 		clientDir: clientDir,
 		template:  template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),

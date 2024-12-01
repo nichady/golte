@@ -9,17 +9,6 @@ import (
 	"github.com/HazelnutParadise/sveltigo/render"
 )
 
-var renderMode = RenderModeCSR
-
-const (
-	RenderModeCSR = "CSR"
-	RenderModeSSR = "SSR"
-)
-
-func SetMode(mode string) {
-	renderMode = mode
-}
-
 // Props is an alias for map[string]any. It exists for documentation purposes.
 // Props must be JSON-serializable when passing to fuctions defined in this package.
 type Props = map[string]any
@@ -42,7 +31,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 		panic(err)
 	}
 
-	renderer := render.New(&serverDir, &clientDir, renderMode)
+	renderer := render.New(&serverDir, &clientDir)
 	assets := http.StripPrefix("/"+renderer.Assets()+"/", fileServer(clientDir))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
