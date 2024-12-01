@@ -260,6 +260,11 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
 			var resourcePath string
+			var originalTag string
+
+			// 保存原始的 HTML 標籤字串
+			originalTag = renderNode(n)
+
 			switch n.Data {
 			case "script":
 				for _, attr := range n.Attr {
@@ -269,33 +274,27 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 					}
 				}
 			case "link":
-				// 檢查是否為 golte 的 CSS 資源
+				// 檢查是否為 stylesheet
 				isStylesheet := false
+				var href string
 				for _, attr := range n.Attr {
 					if attr.Key == "rel" && attr.Val == "stylesheet" {
 						isStylesheet = true
 					}
+					if attr.Key == "href" {
+						href = attr.Val
+					}
 				}
 				if isStylesheet {
-					// 如果是 golte 的 CSS 資源，我們需要從 renderfile 中獲取路徑
-					// 這裡需要根據實際情況生成路徑
-					resourcePath = "/golte_/assets/" + n.Data + ".css"
-				} else {
-					// 一般的外部資源
-					for _, attr := range n.Attr {
-						if attr.Key == "href" {
-							resourcePath = attr.Val
-							break
-						}
-					}
+					resourcePath = href
 				}
 			}
 
 			if resourcePath != "" {
-				fmt.Printf("Found %s: %s with tag: %s\n", n.Data, resourcePath, renderNode(n))
+				fmt.Printf("Found %s: %s with original tag: %s\n", n.Data, resourcePath, originalTag)
 				resources[resourcePath] = ResourceInfo{
 					TagName:    n.Data,
-					FullTag:    renderNode(n),
+					FullTag:    originalTag,
 					Attributes: extractAttributes(n.Attr),
 				}
 			}
