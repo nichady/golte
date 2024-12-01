@@ -26,14 +26,14 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
-	tmpl := template.Must(template.New("").ParseFS(*ServerDir, "template.html")).Lookup("template.html")
+func New(serverFS *fs.FS, clientFS *fs.FS) *Renderer {
+	tmpl := template.Must(template.New("").ParseFS(*serverFS, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
 	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-		return fs.ReadFile(*ServerDir, path)
+		return fs.ReadFile(*serverFS, path)
 	}).Enable(vm)
 
 	console.Enable(vm)
@@ -52,8 +52,8 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 	}
 
 	return &Renderer{
+		clientDir:  clientFS,
 		template:   tmpl,
-		clientDir:  ClientDir,
 		vm:         vm,
 		renderfile: renderfile,
 		infofile:   infofile,
@@ -70,6 +70,17 @@ type RenderData struct {
 func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	r.mtx.Lock()
 	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
+	resources, err := extractResourcePaths(&result.Head)
+	if err != nil {
+		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
+		return fmt.Errorf("resource extraction error: %w", err)
+	}
+
+	err = r.replaceResourcePaths(&result.Head, resources)
+	if err != nil {
+		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
+		return fmt.Errorf("resource replacement error: %w", err)
+	}
 	r.mtx.Unlock()
 
 	if err != nil {
@@ -83,19 +94,8 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	resources, err := extractResourcePaths(&result.Head)
-	if err != nil {
-		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
-		return fmt.Errorf("resource extraction error: %w", err)
-	}
-
-	err = r.replaceResourcePaths(&result.Head, resources)
-	if err != nil {
-		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
-		return fmt.Errorf("resource replacement error: %w", err)
-	}
-
 	return r.template.Execute(w, result)
+
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
@@ -125,6 +125,17 @@ type Entry struct {
 
 type SvelteContextData struct {
 	URL string
+}
+
+type csrResponse struct {
+	Entries []responseEntry
+	ErrPage responseEntry
+}
+
+type responseEntry struct {
+	File  string
+	Props map[string]any
+	CSS   []string
 }
 
 type infofile struct {
