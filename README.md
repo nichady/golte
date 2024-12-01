@@ -1,8 +1,9 @@
 # Sveltigo
 
-`sveltigo` is a library for Go that allows you to render Svelte components in your http handlers, supporting SSR+hydration capabilities without requiring NodeJS.
+`sveltigo` is an enhancement of [`Golte`](https://github.com/nichady/golte), a library for Go that allows you to render Svelte components in your http handlers, supporting SSR+hydration capabilities without requiring NodeJS.
 
 ## Features
+
 - SSR + Hydration
 - NodeJS not required in production
 - Layouts as middleware (they can be nested)
