@@ -328,14 +328,20 @@ func renderNode(n *html.Node) string {
 func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 	fmt.Printf("Searching for file: %s\n", filename)
 
-	// 嘗試在 server 和 client 的子目錄中搜尋
-	searchPaths := []string{
-		"/",       // 根目錄
-		"assets",  // client的assets目錄
-		"entries", // client的entries目錄
-		"chunks",  // client的chunks目錄
+	// 根據檔案副檔名決定搜尋路徑
+	var searchPaths []string
+	if strings.HasSuffix(filename, ".css") {
+		searchPaths = []string{
+			"assets", // CSS 檔案在 assets 目錄
+		}
+	} else if strings.HasSuffix(filename, ".js") {
+		searchPaths = []string{
+			"entries", // JavaScript 入口檔案
+			"chunks",  // JavaScript 共用區塊
+		}
 	}
 
+	// 在每個可能的路徑中搜尋
 	for _, basePath := range searchPaths {
 		fullPath := basePath + "/" + filename
 		fmt.Printf("Trying path: %s\n", fullPath)
@@ -347,7 +353,7 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("file %s not found in server or client directories", filename)
+	return nil, fmt.Errorf("file %s not found in any directory", filename)
 }
 
 // 修改 replaceResourcePaths 函數
