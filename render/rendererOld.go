@@ -61,7 +61,7 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 }
 
 type RenderData struct {
-	Entries *[]Entry
+	Entries []Entry
 	ErrPage string
 	SCData  SvelteContextData
 }
@@ -69,7 +69,7 @@ type RenderData struct {
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	r.mtx.Lock()
-	result, err := r.renderfile.Render(*data.Entries, data.SCData, data.ErrPage)
+	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
 	r.mtx.Unlock()
 
 	if err != nil {
