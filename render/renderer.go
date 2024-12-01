@@ -439,9 +439,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 			// 所有 script 都內聯
 			replacement = "<script"
 			for key, value := range resource.Attributes {
-				if key != "src" {
-					replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
-				}
+				replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
 			}
 			replacement += ">\n" + string(content) + "\n</script>"
 			fmt.Printf("Replacing script: %s\n", resource.FullTag)
@@ -449,7 +447,13 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
 				// CSS 內聯
-				replacement = "<style data-source=\"" + filename + "\">\n" + string(content) + "\n</style>"
+				replacement = "<style"
+				for key, value := range resource.Attributes {
+					if key != "href" {
+						replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
+					}
+				}
+				replacement += ">" + string(content) + "\n</style>"
 				fmt.Printf("Replacing CSS: %s\n", resource.FullTag)
 			}
 		}
@@ -460,8 +464,8 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*?>`, resource.TagName))
 			matches := tagPattern.FindAllString(*html, -1)
 			for _, match := range matches {
-				// 修正判斷邏輯，確保匹配的是完整的標籤
-				if strings.Contains(match, resource.Attributes["rel"]) || strings.Contains(match, filename) {
+				// 修正判斷邏輯，確保匹配的是完整的標籤，並且包含特定屬性或檔名
+				if (resource.TagName == "link" && strings.Contains(match, "rel=\"stylesheet\"")) || strings.Contains(match, filename) {
 					*html = strings.Replace(*html, match, replacement, 1)
 					replacementCount++
 					fmt.Printf("Successfully replaced %s\n", resource.FullTag)
@@ -479,3 +483,4 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 // 1. 使用 `regexp.QuoteMeta` 對資源標籤進行編碼，避免正則表達式中出現特殊字元導致替換失敗。
 // 2. 使用正則表達式來更精確地匹配完整的 HTML 標籤，並忽略屬性順序，以防止出現部分替換或錯誤替換的情況。
 // 3. 修正匹配邏輯以確保標籤內容包含必要的屬性或檔名，避免錯誤的替換。
+// 4. 確保替換後的標籤保留原始標籤的所有屬性，避免丟失可能重要的屬性。
