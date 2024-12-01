@@ -87,57 +87,13 @@ type RenderData struct {
 }
 
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	// 將 RenderData 轉換為 JSON 兼容格式
-	dataMap := map[string]any{
-		"entries": data.Entries,
-		"errPage": data.ErrPage,
-		"scData":  data.SCData,
-	}
-
-	convertedData, err := ConvertStructsToJSON(dataMap)
+	// 將 RenderData 轉換為 JSON
+	dataJSON, err := json.Marshal(data)
 	if err != nil {
-		http.Error(w, "Internal Server Error: Data Conversion Failed", http.StatusInternalServerError)
-		fmt.Printf("Data conversion error: %v\n", err)
+		http.Error(w, "Internal Server Error: Data Serialization Failed", http.StatusInternalServerError)
+		fmt.Printf("Data serialization error: %v\n", err)
 		return err
 	}
-
-	// 提取轉換後的資料
-	entriesRaw := convertedData["entries"]
-	entriesSlice, ok := entriesRaw.([]any)
-	if !ok {
-		http.Error(w, "Internal Server Error: Invalid Entries Format", http.StatusInternalServerError)
-		fmt.Printf("Invalid entries format: %v\n", entriesRaw)
-		return fmt.Errorf("invalid entries format")
-	}
-
-	// 轉換 entries 為正確的類型
-	entries := make([]*Entry, len(entriesSlice))
-	for i, e := range entriesSlice {
-		entryMap, ok := e.(map[string]any)
-		if !ok {
-			http.Error(w, "Internal Server Error: Invalid Entry Data", http.StatusInternalServerError)
-			fmt.Printf("Invalid entry data: %v\n", e)
-			return fmt.Errorf("invalid entry data")
-		}
-
-		// 安全處理 Props，確保不為 nil
-		props, ok := entryMap["Props"].(map[string]any)
-		if !ok || props == nil {
-			props = make(map[string]any) // 如果 Props 為 nil，提供一個空的 map
-		}
-
-		entries[i] = &Entry{
-			Comp:  entryMap["Comp"].(string),
-			Props: props,
-		}
-	}
-
-	// 提取其他資料
-	scDataRaw := convertedData["scData"].(map[string]any)
-	typedSCData := &SvelteContextData{
-		URL: scDataRaw["URL"].(string),
-	}
-	errPage := convertedData["errPage"].(string)
 
 	// 處理 VM
 	vm, ok := r.vmPool.Get().(*goja.Runtime)
@@ -148,10 +104,13 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 	defer r.vmPool.Put(vm)
 
-	// 使用轉換後的資料進行渲染
+	// 將 JSON 傳遞到 JavaScript 環境
+	vm.Set("renderData", string(dataJSON))
+
+	// JavaScript 渲染邏輯
 	var result *result
 	r.mutex.Lock()
-	result, err = r.renderfile.Render(entries, typedSCData, errPage)
+	result, err = r.renderfile.RenderJSON(string(dataJSON))
 	r.mutex.Unlock()
 	if err != nil {
 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
@@ -248,7 +207,7 @@ type renderfile struct {
 		Client string
 		CSS    []string
 	}
-	Render func([]*Entry, *SvelteContextData, string) (*result, error)
+	RenderJSON func(string) (*result, error) // 修改為支援 JSON 字串
 }
 
 type result struct {
