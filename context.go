@@ -41,7 +41,7 @@ func MustGetRenderContext(r *http.Request) *RenderContext {
 // with each subsequent component being a child of the previous.
 func (r *RenderContext) Render(w http.ResponseWriter) {
 	data := &render.RenderData{
-		Entries: &r.Components,
+		Entries: r.Components,
 		ErrPage: r.ErrPage,
 		SCData:  r.scdata,
 	}
