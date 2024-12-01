@@ -32,6 +32,7 @@ type Renderer struct {
 	infofile   infofile
 	template   *template.Template
 	vmPool     sync.Pool
+	mutex      sync.Mutex
 }
 
 // New constructs a renderer from the given FS.
@@ -57,12 +58,12 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 
 		var renderfile renderfile
 		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
-			panic(err)
+			panic(fmt.Sprintf("Failed to load render.js: %v", err))
 		}
 
 		var infofile infofile
 		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
-			panic(err)
+			panic(fmt.Sprintf("Failed to load info.js: %v", err))
 		}
 
 		return vm
@@ -70,15 +71,19 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 
 	// Initialize the first VM instance
 	vm := r.vmPool.Get().(*goja.Runtime)
+	defer r.vmPool.Put(vm)
+
 	var renderfile renderfile
-	vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
+	if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
+		panic(fmt.Sprintf("Failed to initialize render.js: %v", err))
+	}
 	r.renderfile = renderfile
 
 	var infofile infofile
-	vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
+	if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
+		panic(fmt.Sprintf("Failed to initialize info.js: %v", err))
+	}
 	r.infofile = infofile
-
-	r.vmPool.Put(vm)
 
 	return r
 }
@@ -94,13 +99,13 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 		fmt.Println("Rendering using SSR Mode")
 	}
 
-	// 複製 entries，確保原始資料不被修改
+	// Copy entries to avoid modifying the original data
 	entries := make([]*Entry, len(data.Entries))
 	for i := range data.Entries {
 		entries[i] = &data.Entries[i]
 	}
 
-	// 從 VM 池取得一個實例
+	// Get a VM instance from the pool
 	vm, ok := r.vmPool.Get().(*goja.Runtime)
 	if !ok {
 		http.Error(w, "Internal Server Error: VM Pool Error", http.StatusInternalServerError)
@@ -109,28 +114,31 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 	defer r.vmPool.Put(vm)
 
-	// 執行 Render 方法
-	result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+	// Execute the Render method
+	var result *result
+	var err error
+	r.mutex.Lock() // Ensure thread safety during renderfile.Render execution
+	result, err = r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+	r.mutex.Unlock()
 	if err != nil {
 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
 		fmt.Printf("Render error: %v\n", err)
 		return err
 	}
 
-	// 檢查是否有錯誤
+	// Check if rendering resulted in an error
 	if result.HasError {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return nil
 	}
 
-	// 設定回應標頭
+	// Set response headers
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	// 渲染 HTML 模版
+	// Render HTML template
 	var buf bytes.Buffer
-	err = r.template.Execute(&buf, result)
-	if err != nil {
+	if err := r.template.Execute(&buf, result); err != nil {
 		http.Error(w, "Internal Server Error: Template Execution Failed", http.StatusInternalServerError)
 		fmt.Printf("Template execution error: %v\n", err)
 		return err
@@ -138,7 +146,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 
 	html := buf.String()
 
-	// 資源替換（僅限於 SSR 模式）
+	// Perform resource replacement (SSR mode only)
 	if r.mode == "SSR" {
 		resources, err := extractResourcePaths(&html)
 		if err != nil {
@@ -146,8 +154,6 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 			fmt.Printf("Resource extraction error: %v\n", err)
 			return err
 		}
-
-		result.Resources = resources
 
 		err = r.replaceResourcePaths(&html, resources)
 		if err != nil {
@@ -157,7 +163,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 		}
 	}
 
-	// 寫入回應
+	// Write the response
 	_, err = w.Write([]byte(html))
 	if err != nil {
 		fmt.Printf("Write response error: %v\n", err)
