@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"net/http"
 	"regexp"
-	"sort"
 	"sync"
 	"text/template"
 
@@ -18,6 +17,11 @@ import (
 	"github.com/dop251/goja_nodejs/url"
 	"golang.org/x/net/html"
 )
+
+// Assets returns the "assets" field that was used in the golte configuration file.
+func (r *Renderer) Assets() string {
+	return r.infofile.Assets
+}
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
@@ -31,30 +35,7 @@ type Renderer struct {
 }
 
 // New constructs a renderer from the given FS.
-// The FS should be the "server" subdirectory of the build output from "npx golte".
-// The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
-	// 讀取並印出 template.html 的內容
-	// templateContent, err := fs.ReadFile(*serverDir, "template.html")
-	// if err == nil {
-	// 	fmt.Println("=== template.html content ===")
-	// 	fmt.Println(string(templateContent))
-	// 	fmt.Println("=== End of template.html ===")
-	// }
-
-	// 列出 fsys 中的所有檔案，包含完整路徑
-	fmt.Println("=== Listing all files in fsys ===")
-	fs.WalkDir(*serverDir, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			fmt.Printf("File: %s\n", path)
-		}
-		return nil
-	})
-	fmt.Println("=== End of file listing ===")
-
 	r := &Renderer{
 		mode:      "SSR",
 		serverDir: serverDir,
@@ -64,8 +45,6 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 
 	r.vmPool.New = func() interface{} {
 		vm := goja.New()
-		vm.SetFieldNameMapper(NewFieldMapper("json"))
-
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
 			return fs.ReadFile(*r.serverDir, path)
 		})
@@ -87,7 +66,7 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 		return vm
 	}
 
-	// 初始化第一個 VM 實例
+	// Initialize the first VM instance
 	vm := r.vmPool.Get().(*goja.Runtime)
 	var renderfile renderfile
 	vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
@@ -110,105 +89,52 @@ type RenderData struct {
 
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	switch r.mode {
-	case "SSR":
-		fmt.Println("rendering using SSR Mode")
-		// 轉換 []Entry 到 []*Entry
-		entries := make([]*Entry, len(data.Entries))
-		for i := range data.Entries {
-			entries[i] = &data.Entries[i]
-		}
-
-		vm := r.vmPool.Get().(*goja.Runtime)
-		result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
-		r.vmPool.Put(vm)
-
-		if err != nil {
-			return err
-		}
-
-		if result.HasError {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Vary", "Golte")
-
-		var buf bytes.Buffer
-		err = r.template.Execute(&buf, result)
-		if err != nil {
-			return err
-		}
-
-		html := buf.String()
-
-		// 解析資源路徑
-		resources, err := extractResourcePaths(&html)
-		if err != nil {
-			return err
-		}
-
-		// 將資源資訊添加到結果中
-		result.Resources = resources
-
-		// 替換資源引用
-		err = r.replaceResourcePaths(&html, resources)
-		if err != nil {
-			return err
-		}
-
-		// 在寫入 response 之前，加入除錯資訊
-		fmt.Printf("SSR Mode: Resources found: %d\n", len(resources))
-		for path := range resources {
-			fmt.Printf("Resource: %s\n", path)
-		}
-
-		// 確保替換後的 HTML 不包含原始的外部資源引用
-		if strings.Contains(html, "/golte_/assets/") || strings.Contains(html, "/golte_/entries/") {
-			fmt.Println("Warning: External resources still present in HTML after replacement")
-		}
-
-		_, err = w.Write([]byte(html))
-		return err
-	case "CSR":
-		// fmt.Println("rendering using CSR Mode")
-		// resp := &csrResponse{
-		// 	Entries: make([]*responseEntry, 0, len(data.Entries)),
-		// }
-
-		// for _, v := range data.Entries {
-		// 	comp := r.renderfile.Manifest[v.Comp]
-		// 	resp.Entries = append(resp.Entries, &responseEntry{
-		// 		File:  comp.Client,
-		// 		Props: v.Props,
-		// 		CSS:   comp.CSS,
-		// 	})
-		// }
-
-		// resp.ErrPage = &responseEntry{
-		// 	File: r.renderfile.Manifest[data.ErrPage].Client,
-		// 	CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
-		// }
-
-		// w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		// w.Header().Set("Vary", "Golte")
-
-		// return json.NewEncoder(w).Encode(resp)
+	if r.mode != "SSR" {
+		return fmt.Errorf("invalid mode: %s", r.mode)
 	}
 
-	return fmt.Errorf("invalid mode: %s", r.mode)
-}
+	fmt.Println("Rendering using SSR Mode")
+	entries := make([]*Entry, len(data.Entries))
+	for i := range data.Entries {
+		entries[i] = &data.Entries[i]
+	}
 
-// Assets returns the "assets" field that was used in the golte configuration file.
-func (r *Renderer) Assets() string {
-	return r.infofile.Assets
-}
+	vm := r.vmPool.Get().(*goja.Runtime)
+	result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+	r.vmPool.Put(vm)
 
-type result struct {
-	Head      string
-	Body      string
-	HasError  bool
-	Resources map[string]ResourceInfo
+	if err != nil {
+		return err
+	}
+
+	if result.HasError {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "Golte")
+
+	var buf bytes.Buffer
+	err = r.template.Execute(&buf, result)
+	if err != nil {
+		return err
+	}
+
+	html := buf.String()
+	resources, err := extractResourcePaths(&html)
+	if err != nil {
+		return err
+	}
+
+	result.Resources = resources
+
+	err = r.replaceResourcePaths(&html, resources)
+	if err != nil {
+		return err
+	}
+
+	_, err = w.Write([]byte(html))
+	return err
 }
 
 type renderfile struct {
@@ -219,7 +145,13 @@ type renderfile struct {
 	Render func([]*Entry, *SvelteContextData, string) (*result, error)
 }
 
-// Entry represents a component to be rendered, along with its props.
+type result struct {
+	Head      string
+	Body      string
+	HasError  bool
+	Resources []ResourceEntry
+}
+
 type Entry struct {
 	Comp  string
 	Props map[string]any
@@ -229,44 +161,33 @@ type SvelteContextData struct {
 	URL string
 }
 
-type csrResponse struct {
-	Entries []*responseEntry
-	ErrPage *responseEntry
-}
-
-type responseEntry struct {
-	File  string
-	Props map[string]any
-	CSS   []string
-}
-
 type infofile struct {
 	Assets string
 }
 
 type ResourceInfo struct {
 	TagName    string
-	FullTag    string // 儲存完整的 HTML 標籤
+	FullTag    string
 	Attributes map[string]string
 }
 
-func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) {
+type ResourceEntry struct {
+	Path     string
+	Resource ResourceInfo
+}
+
+func extractResourcePaths(htmlContent *string) ([]ResourceEntry, error) {
 	doc, err := html.Parse(strings.NewReader(*htmlContent))
 	if err != nil {
 		return nil, err
 	}
 
-	resources := make(map[string]ResourceInfo)
-
+	var resources []ResourceEntry
 	var traverse func(*html.Node)
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
 			var resourcePath string
-			var originalTag string
-
-			// 保存原始的 HTML 標籤字串
-			originalTag = renderNode(n)
-
+			var originalTag = renderNode(n)
 			switch n.Data {
 			case "script":
 				for _, attr := range n.Attr {
@@ -276,7 +197,6 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 					}
 				}
 			case "link":
-				// 檢查是否為 stylesheet
 				isStylesheet := false
 				var href string
 				for _, attr := range n.Attr {
@@ -293,12 +213,14 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 			}
 
 			if resourcePath != "" {
-				fmt.Printf("Found %s: %s with original tag: %s\n", n.Data, resourcePath, originalTag)
-				resources[resourcePath] = ResourceInfo{
-					TagName:    n.Data,
-					FullTag:    originalTag,
-					Attributes: extractAttributes(n.Attr),
-				}
+				resources = append(resources, ResourceEntry{
+					Path: resourcePath,
+					Resource: ResourceInfo{
+						TagName:    n.Data,
+						FullTag:    originalTag,
+						Attributes: extractAttributes(n.Attr),
+					},
+				})
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -318,37 +240,12 @@ func extractAttributes(attrs []html.Attribute) map[string]string {
 	return attributes
 }
 
-// 修改 renderNode 函數
 func renderNode(n *html.Node) string {
 	var buf bytes.Buffer
-
-	// 開始標籤
 	buf.WriteString("<")
 	buf.WriteString(n.Data)
 
-	// 先找到 href/src 屬性
-	var mainAttr *html.Attribute
-	var otherAttrs []html.Attribute
-
 	for _, attr := range n.Attr {
-		if attr.Key == "href" || attr.Key == "src" {
-			mainAttr = &attr
-		} else {
-			otherAttrs = append(otherAttrs, attr)
-		}
-	}
-
-	// 先寫入 href/src 屬性（如果存在）
-	if mainAttr != nil {
-		buf.WriteString(" ")
-		buf.WriteString(mainAttr.Key)
-		buf.WriteString("=\"")
-		buf.WriteString(html.EscapeString(mainAttr.Val))
-		buf.WriteString("\"")
-	}
-
-	// 再寫入其他屬性
-	for _, attr := range otherAttrs {
 		buf.WriteString(" ")
 		buf.WriteString(attr.Key)
 		buf.WriteString("=\"")
@@ -358,7 +255,6 @@ func renderNode(n *html.Node) string {
 
 	if n.FirstChild != nil {
 		buf.WriteString(">")
-		// 遞迴渲染子節點
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
 			if c.Type == html.TextNode {
 				buf.WriteString(html.EscapeString(c.Data))
@@ -370,126 +266,59 @@ func renderNode(n *html.Node) string {
 		buf.WriteString(n.Data)
 		buf.WriteString(">")
 	} else {
-		// 自閉合標籤
 		buf.WriteString("/>")
 	}
 
 	return buf.String()
 }
 
-// 修改輔助函數來搜尋檔案
 func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
-	fmt.Printf("Searching for file: %s\n", filename)
-
-	// 直接嘗試在 assets 目錄中查找 CSS 檔案
-	if strings.HasSuffix(filename, ".css") {
-		fullPath := "assets/" + filename
-		content, err := fs.ReadFile(clientDir, fullPath)
+	paths := []string{"assets/" + filename, "entries/" + filename, "chunks/" + filename}
+	for _, path := range paths {
+		content, err := fs.ReadFile(clientDir, path)
 		if err == nil {
-			fmt.Printf("Found CSS file at: %s\n", fullPath)
 			return content, nil
 		}
 	}
-
-	// 對於 JS 檔案，嘗試在 entries 和 chunks 目錄中查找
-	if strings.HasSuffix(filename, ".js") {
-		paths := []string{"entries/" + filename, "chunks/" + filename}
-		for _, path := range paths {
-			content, err := fs.ReadFile(clientDir, path)
-			if err == nil {
-				fmt.Printf("Found JS file at: %s\n", path)
-				return content, nil
-			}
-		}
-	}
-
-	return nil, fmt.Errorf("file %s not found in any directory", filename)
+	return nil, fmt.Errorf("file %s not found", filename)
 }
 
-// 修改 replaceResourcePaths 函數
-func (r *Renderer) replaceResourcePaths(html *string, resources map[string]ResourceInfo) error {
-	replacementCount := 0
-	// 逐一按順序處理資源，以確保替換後的順序與原始順序一致
-	orderedResources := make([]string, 0, len(resources))
-	for path := range resources {
-		orderedResources = append(orderedResources, path)
-	}
-	// 保持資源順序
-	sort.Strings(orderedResources)
+func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
+	fileCache := make(map[string][]byte)
 
-	for _, path := range orderedResources {
-		resource := resources[path]
-		// 跳過外部資源（CDN）
+	for _, entry := range resources {
+		path := entry.Path
+		resource := entry.Resource
 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-			fmt.Printf("Skipping external resource: %s\n", path)
 			continue
 		}
 
-		// 只處理 golte_ 相關的資源
-		if !strings.Contains(path, "golte_/") {
-			fmt.Printf("Skipping non-golte resource: %s\n", path)
-			continue
-		}
-
-		fmt.Printf("Processing resource: %s\n", path)
-
-		// 取得完整路徑而不僅僅是檔名
 		filename := path[strings.LastIndex(path, "/")+1:]
-
-		// 在所有子目錄中搜尋檔案
-		content, err := findFileInFS(*r.clientDir, filename)
-		if err != nil {
-			fmt.Printf("Resource not found: %v\n", err)
-			continue
+		content, cached := fileCache[filename]
+		if !cached {
+			var err error
+			content, err = findFileInFS(*r.clientDir, filename)
+			if err != nil {
+				continue
+			}
+			fileCache[filename] = content
 		}
 
 		var replacement string
 		switch resource.TagName {
 		case "script":
-			// 所有 script 都內聯
-			replacement = "<script"
-			for key, value := range resource.Attributes {
-				replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
-			}
-			replacement += ">\n" + string(content) + "\n</script>"
-			fmt.Printf("Replacing script: %s\n", resource.FullTag)
-
+			replacement = fmt.Sprintf("<script>%s</script>", string(content))
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
-				// CSS 內聯
-				replacement = "<style"
-				for key, value := range resource.Attributes {
-					if key != "href" && key != "rel" {
-						replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
-					}
-				}
-				replacement += ">" + string(content) + "\n</style>"
-				fmt.Printf("Replacing CSS: %s\n", resource.FullTag)
+				replacement = fmt.Sprintf("<style>%s</style>", string(content))
 			}
 		}
 
-		// 更改替換邏輯以更精確地匹配和替換完整的 HTML 標籤
 		if replacement != "" {
-			// 使用正則表達式匹配標籤名稱和屬性，並且忽略屬性的順序
-			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*href="[^"]*%s"[^>]*>`, resource.TagName, regexp.QuoteMeta(filename)))
-			match := tagPattern.FindString(*html)
-			if match != "" {
-				*html = strings.Replace(*html, match, replacement, 1)
-				replacementCount++
-				fmt.Printf("Successfully replaced %s\n", resource.FullTag)
-			}
+			tagPattern := regexp.MustCompile(regexp.QuoteMeta(resource.FullTag))
+			*html = tagPattern.ReplaceAllString(*html, replacement)
 		}
 	}
 
-	fmt.Printf("Total replacements: %d\n", replacementCount)
 	return nil
 }
-
-// 注意事項：
-// 1. 使用 `regexp.QuoteMeta` 對資源標籤進行編碼，避免正則表達式中出現特殊字元導致替換失敗。
-// 2. 使用正則表達式來更精確地匹配完整的 HTML 標籤，並忽略屬性順序，以防止出現部分替換或錯誤替換的情況。
-// 3. 修正匹配邏輯以確保標籤內容包含必要的屬性或檔名，避免錯誤的替換。
-// 4. 確保替換後的標籤保留原始標籤的所有屬性，避免丟失可能重要的屬性。
-// 5. 確保在 CSS 內聯時不保留 "rel" 屬性。
-// 6. 改善正則表達式的匹配邏輯，僅替換包含特定 href 的標籤，防止錯誤替換。
-// 7. 維持資源處理順序與原始順序一致，確保嵌入資源的順序正確。
