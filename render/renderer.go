@@ -20,19 +20,27 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
+	mode       string
 	serverDir  *fs.FS
 	clientDir  *fs.FS
 	renderfile renderfile
 	infofile   infofile
-
-	template *template.Template
-	vmPool   sync.Pool
+	template   *template.Template
+	vmPool     sync.Pool
 }
 
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
+func New(serverDir *fs.FS, clientDir *fs.FS, mode string) *Renderer {
+	// 讀取並印出 template.html 的內容
+	templateContent, err := fs.ReadFile(*serverDir, "template.html")
+	if err == nil {
+		fmt.Println("=== template.html content ===")
+		fmt.Println(string(templateContent))
+		fmt.Println("=== End of template.html ===")
+	}
+
 	// 列出 fsys 中的所有檔案，包含完整路徑
 	fmt.Println("=== Listing all files in fsys ===")
 	fs.WalkDir(*serverDir, ".", func(path string, d fs.DirEntry, err error) error {
@@ -47,6 +55,7 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	fmt.Println("=== End of file listing ===")
 
 	r := &Renderer{
+		mode:      mode,
 		serverDir: serverDir,
 		clientDir: clientDir,
 		template:  template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),
@@ -99,8 +108,9 @@ type RenderData struct {
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) error {
-	if !csr {
+func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
+	switch r.mode {
+	case "CSR":
 		// 轉換 []Entry 到 []*Entry
 		entries := make([]*Entry, len(data.Entries))
 		for i := range data.Entries {
@@ -158,30 +168,32 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) err
 
 		_, err = w.Write([]byte(html))
 		return err
+	case "SSR":
+		resp := &csrResponse{
+			Entries: make([]*responseEntry, 0, len(data.Entries)),
+		}
+
+		for _, v := range data.Entries {
+			comp := r.renderfile.Manifest[v.Comp]
+			resp.Entries = append(resp.Entries, &responseEntry{
+				File:  comp.Client,
+				Props: v.Props,
+				CSS:   comp.CSS,
+			})
+		}
+
+		resp.ErrPage = &responseEntry{
+			File: r.renderfile.Manifest[data.ErrPage].Client,
+			CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Vary", "Golte")
+
+		return json.NewEncoder(w).Encode(resp)
 	}
 
-	resp := &csrResponse{
-		Entries: make([]*responseEntry, 0, len(data.Entries)),
-	}
-
-	for _, v := range data.Entries {
-		comp := r.renderfile.Manifest[v.Comp]
-		resp.Entries = append(resp.Entries, &responseEntry{
-			File:  comp.Client,
-			Props: v.Props,
-			CSS:   comp.CSS,
-		})
-	}
-
-	resp.ErrPage = &responseEntry{
-		File: r.renderfile.Manifest[data.ErrPage].Client,
-		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Vary", "Golte")
-
-	return json.NewEncoder(w).Encode(resp)
+	return fmt.Errorf("invalid mode: %s", r.mode)
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
@@ -397,13 +409,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		var replacement string
 		switch resource.TagName {
 		case "script":
-			// 檢查是否是 module 類型的 script
-			isModule := resource.Attributes["type"] == "module"
-			if isModule {
-				// 對於 module 類型的 script，我們需要保留它
-				continue
-			}
-			// 只處理非 module 的 script
+			// 所有 script 都內聯，包括 module
 			replacement = "<script"
 			for key, value := range resource.Attributes {
 				if key != "src" {

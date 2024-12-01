@@ -14,7 +14,6 @@ type RenderContext struct {
 	Renderer   *render.Renderer
 	Components []render.Entry
 	ErrPage    string
-	csr        bool
 	scdata     render.SvelteContextData
 }
 
@@ -47,7 +46,7 @@ func (r *RenderContext) Render(w http.ResponseWriter) {
 		SCData:  r.scdata,
 	}
 
-	if err := r.Renderer.Render(w, data, r.csr); err != nil {
+	if err := r.Renderer.Render(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
