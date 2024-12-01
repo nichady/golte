@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strings"
 	"sync"
 	"text/template"
 
@@ -13,13 +14,22 @@ import (
 	"github.com/dop251/goja_nodejs/url"
 )
 
+// 將 result 類型定義移到前面
+type result struct {
+	Head     string
+	Body     string
+	HasError bool
+}
+
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
 	renderfile renderfile
 	infofile   infofile
 
-	template *template.Template
-	vmPool   sync.Pool
+	template  *template.Template
+	vmPool    sync.Pool
+	inlineJS  string
+	inlineCSS string
 }
 
 // New constructs a renderer from the given FS.
@@ -79,28 +89,47 @@ type RenderData struct {
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) error {
 	if !csr {
-		// 轉換 []Entry 到 []*Entry
 		entries := make([]*Entry, len(data.Entries))
 		for i := range data.Entries {
 			entries[i] = &data.Entries[i]
 		}
 
 		vm := r.vmPool.Get().(*goja.Runtime)
-		result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+		origResult, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
 		r.vmPool.Put(vm)
 
 		if err != nil {
 			return err
 		}
 
-		if result.HasError {
+		if origResult.HasError {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Vary", "Golte")
 
-		return r.template.Execute(w, result)
+		// 修改 HTML 內容，注入內聯資源
+		head := origResult.Head
+		body := origResult.Body
+
+		// 在 </head> 前注入 CSS
+		if r.inlineCSS != "" {
+			head = strings.Replace(head, "</head>", "<style>"+r.inlineCSS+"</style></head>", 1)
+		}
+
+		// 在 </body> 前注入 JS
+		if r.inlineJS != "" {
+			body = strings.Replace(body, "</body>", "<script>"+r.inlineJS+"</script></body>", 1)
+		}
+
+		modifiedResult := &result{
+			Head:     head,
+			Body:     body,
+			HasError: origResult.HasError,
+		}
+
+		return r.template.Execute(w, modifiedResult)
 	}
 
 	resp := &csrResponse{
@@ -132,12 +161,7 @@ func (r *Renderer) Assets() string {
 	return r.infofile.Assets
 }
 
-type result struct {
-	Head     string
-	Body     string
-	HasError bool
-}
-
+// 移除後面的重複定義
 type renderfile struct {
 	Manifest map[string]*struct {
 		Client string
@@ -169,4 +193,9 @@ type responseEntry struct {
 
 type infofile struct {
 	Assets string
+}
+
+func (r *Renderer) SetInlineAssets(js, css string) {
+	r.inlineJS = js
+	r.inlineCSS = css
 }

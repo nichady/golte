@@ -2,6 +2,7 @@ package sveltigo
 
 import (
 	"context"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -31,7 +32,17 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 		panic(err)
 	}
 
+	mainJS, err := loadAsset(clientDir, "main.js")
+	if err != nil {
+		panic(err)
+	}
+	mainCSS, err := loadAsset(clientDir, "main.css")
+	if err != nil {
+		panic(err)
+	}
+
 	renderer := render.New(&serverDir)
+	renderer.SetInlineAssets(mainJS, mainCSS)
 	assets := http.StripPrefix("/"+renderer.Assets()+"/", fileServer(clientDir))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,6 +68,21 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func loadAsset(fsys fs.FS, filename string) (string, error) {
+	f, err := fsys.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	content, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	return string(content), nil
 }
 
 // Layout returns a middleware that calls [AddLayout].
