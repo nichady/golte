@@ -1,4 +1,4 @@
-package golte
+package sveltigo
 
 import (
 	"io/fs"

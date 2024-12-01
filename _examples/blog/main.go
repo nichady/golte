@@ -7,13 +7,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"examples/blog/build"
 	"examples/blog/database"
 
 	_ "modernc.org/sqlite"
 
+	"github.com/HazelnutParadise/sveltigo"
 	"github.com/go-chi/chi/v5"
-	"github.com/nichady/golte"
 )
 
 var db = database.NewDB("data.db")
@@ -22,11 +21,11 @@ func main() {
 	r := chi.NewRouter()
 
 	r.Use(auth)
-	r.Use(build.Golte)
+	r.Use(build.sveltigo)
 
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			golte.AddLayout(r, "layout/main", map[string]any{"user": username(r)})
+			sveltigo.AddLayout(r, "layout/main", map[string]any{"user": username(r)})
 			next.ServeHTTP(w, r)
 		})
 	})
@@ -39,7 +38,7 @@ func main() {
 	authRoutes(r)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		golte.RenderError(w, r, "Not Found", http.StatusNotFound)
+		sveltigo.RenderError(w, r, "Not Found", http.StatusNotFound)
 	})
 
 	fmt.Println("Serving on :8000")
@@ -50,11 +49,11 @@ func blogRoutes(r chi.Router) {
 	r.Get("/blog", func(w http.ResponseWriter, r *http.Request) {
 		blogs, err := db.GetAllBlogs()
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		golte.RenderPage(w, r, "page/blogs", map[string]any{
+		sveltigo.RenderPage(w, r, "page/blogs", map[string]any{
 			"blogs": blogs,
 		})
 	})
@@ -62,20 +61,20 @@ func blogRoutes(r chi.Router) {
 	r.Get("/blog/{id:[0-9+]}", func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.Atoi(chi.URLParam(r, "id"))
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		blog, err := db.GetBlog(id)
 		if errors.Is(err, database.ErrBlogNotExist) {
-			golte.RenderError(w, r, err.Error(), http.StatusNotFound)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusNotFound)
 			return
 		} else if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		golte.RenderPage(w, r, "page/blog", map[string]any{
+		sveltigo.RenderPage(w, r, "page/blog", map[string]any{
 			"blog": blog,
 		})
 	})
@@ -88,7 +87,7 @@ func blogRoutes(r chi.Router) {
 
 		err := r.ParseForm()
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusBadRequest)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -97,7 +96,7 @@ func blogRoutes(r chi.Router) {
 
 		err = db.PostBlog(username(r), title, body)
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -106,37 +105,37 @@ func blogRoutes(r chi.Router) {
 
 	r.Get("/new", func(w http.ResponseWriter, r *http.Request) {
 		if username(r) == "" {
-			golte.RenderError(w, r, "Unauthorized", http.StatusUnauthorized)
+			sveltigo.RenderError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		golte.RenderPage(w, r, "page/new", nil)
+		sveltigo.RenderPage(w, r, "page/new", nil)
 	})
 
 	r.Get("/user/{username}", func(w http.ResponseWriter, r *http.Request) {
 		blogs, err := db.GetUserBlogs(chi.URLParam(r, "username"))
 
 		if errors.Is(err, database.ErrUserNotExist) {
-			golte.RenderError(w, r, err.Error(), http.StatusNotFound)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusNotFound)
 			return
 		} else if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		golte.RenderPage(w, r, "page/userblogs", map[string]any{
+		sveltigo.RenderPage(w, r, "page/userblogs", map[string]any{
 			"blogs": blogs,
 		})
 	})
 }
 
 func authRoutes(r chi.Router) {
-	r.Get("/login", golte.Page("page/login"))
+	r.Get("/login", sveltigo.Page("page/login"))
 
 	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusBadRequest)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -145,7 +144,7 @@ func authRoutes(r chi.Router) {
 
 		exists, err := db.AccountExists(username, password)
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -156,7 +155,7 @@ func authRoutes(r chi.Router) {
 
 		id, err := db.CreateSession(username)
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -180,7 +179,7 @@ func authRoutes(r chi.Router) {
 	r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusBadRequest)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -192,13 +191,13 @@ func authRoutes(r chi.Router) {
 			http.Redirect(w, r, "/login?err=1", http.StatusSeeOther)
 			return
 		} else if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		id, err := db.CreateSession(username)
 		if err != nil {
-			golte.RenderError(w, r, err.Error(), http.StatusInternalServerError)
+			sveltigo.RenderError(w, r, err.Error(), http.StatusInternalServerError)
 			return
 		}
 

@@ -1,9 +1,9 @@
-package golte
+package sveltigo
 
 import (
 	"net/http"
 
-	"github.com/nichady/golte/render"
+	"github.com/HazelnutParadise/sveltigo/render"
 )
 
 type contextKey struct{}

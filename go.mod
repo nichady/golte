@@ -1,4 +1,4 @@
-module github.com/nichady/golte
+module github.com/HazelnutParadise/sveltigo
 
 go 1.21.0
 

@@ -1,4 +1,4 @@
-package golte
+package sveltigo
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/nichady/golte/render"
+	"github.com/HazelnutParadise/sveltigo/render"
 )
 
 // Props is an alias for map[string]any. It exists for documentation purposes.
@@ -31,7 +31,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 		panic(err)
 	}
 
-	renderer := render.New(serverDir)
+	renderer := render.New(&serverDir)
 	assets := http.StripPrefix("/"+renderer.Assets()+"/", fileServer(clientDir))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

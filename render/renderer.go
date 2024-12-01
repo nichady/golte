@@ -15,8 +15,8 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	renderfile renderfile
-	infofile   infofile
+	renderfile *renderfile
+	infofile   *infofile
 
 	template *template.Template
 	vm       *goja.Runtime
@@ -26,14 +26,14 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(fsys fs.FS) *Renderer {
-	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
+func New(fsys *fs.FS) *Renderer {
+	tmpl := template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
 	vm.SetFieldNameMapper(fieldMapper{"json"})
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-		return fs.ReadFile(fsys, path)
+		return fs.ReadFile(*fsys, path)
 	}).Enable(vm)
 
 	console.Enable(vm)
@@ -54,8 +54,8 @@ func New(fsys fs.FS) *Renderer {
 	return &Renderer{
 		template:   tmpl,
 		vm:         vm,
-		renderfile: renderfile,
-		infofile:   infofile,
+		renderfile: &renderfile,
+		infofile:   &infofile,
 	}
 }
 
@@ -89,14 +89,14 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	var resp csrResponse
 	for _, v := range data.Entries {
 		comp := r.renderfile.Manifest[v.Comp]
-		resp.Entries = append(resp.Entries, responseEntry{
+		*resp.Entries = append(*resp.Entries, responseEntry{
 			File:  comp.Client,
 			Props: v.Props,
 			CSS:   comp.CSS,
 		})
 	}
 
-	resp.ErrPage = responseEntry{
+	resp.ErrPage = &responseEntry{
 		File: r.renderfile.Manifest[data.ErrPage].Client,
 		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
 	}
@@ -137,8 +137,8 @@ type SvelteContextData struct {
 }
 
 type csrResponse struct {
-	Entries []responseEntry
-	ErrPage responseEntry
+	Entries *[]responseEntry
+	ErrPage *responseEntry
 }
 
 type responseEntry struct {
