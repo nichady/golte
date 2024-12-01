@@ -20,7 +20,7 @@ type Props = map[string]any
 // It will allow you to use [Layout], [AddLayout], [Page], and [RenderPage].
 // It should be mounted on the root of your router.
 // The middleware should not be mounted on routes other than the root.
-func New(fsys fs.FS) func(http.Handler) http.Handler {
+func New(fsys fs.FS, ifSSR bool) func(http.Handler) http.Handler {
 	serverDir, err := fs.Sub(fsys, "server")
 	if err != nil {
 		panic(err)
@@ -31,7 +31,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 		panic(err)
 	}
 
-	renderer := render.New(&serverDir, &clientDir)
+	renderer := render.New(&serverDir, &clientDir, ifSSR)
 	assets := http.StripPrefix("/"+renderer.Assets()+"/", fileServer(clientDir))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
