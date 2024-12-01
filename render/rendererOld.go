@@ -15,8 +15,8 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	renderfile *renderfile
-	infofile   *infofile
+	renderfile renderfile
+	infofile   infofile
 	clientDir  *fs.FS
 	template   *template.Template
 	vm         *goja.Runtime
@@ -55,8 +55,8 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 		template:   tmpl,
 		clientDir:  ClientDir,
 		vm:         vm,
-		renderfile: &renderfile,
-		infofile:   &infofile,
+		renderfile: renderfile,
+		infofile:   infofile,
 	}
 }
 
@@ -67,7 +67,7 @@ type RenderData struct {
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
+func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	r.mtx.Lock()
 	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
 	r.mtx.Unlock()
