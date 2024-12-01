@@ -2,7 +2,6 @@ package render
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -170,29 +169,29 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 		_, err = w.Write([]byte(html))
 		return err
 	case "CSR":
-		fmt.Println("rendering using CSR Mode")
-		resp := &csrResponse{
-			Entries: make([]*responseEntry, 0, len(data.Entries)),
-		}
+		// fmt.Println("rendering using CSR Mode")
+		// resp := &csrResponse{
+		// 	Entries: make([]*responseEntry, 0, len(data.Entries)),
+		// }
 
-		for _, v := range data.Entries {
-			comp := r.renderfile.Manifest[v.Comp]
-			resp.Entries = append(resp.Entries, &responseEntry{
-				File:  comp.Client,
-				Props: v.Props,
-				CSS:   comp.CSS,
-			})
-		}
+		// for _, v := range data.Entries {
+		// 	comp := r.renderfile.Manifest[v.Comp]
+		// 	resp.Entries = append(resp.Entries, &responseEntry{
+		// 		File:  comp.Client,
+		// 		Props: v.Props,
+		// 		CSS:   comp.CSS,
+		// 	})
+		// }
 
-		resp.ErrPage = &responseEntry{
-			File: r.renderfile.Manifest[data.ErrPage].Client,
-			CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
-		}
+		// resp.ErrPage = &responseEntry{
+		// 	File: r.renderfile.Manifest[data.ErrPage].Client,
+		// 	CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
+		// }
 
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Vary", "Golte")
+		// w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		// w.Header().Set("Vary", "Golte")
 
-		return json.NewEncoder(w).Encode(resp)
+		// return json.NewEncoder(w).Encode(resp)
 	}
 
 	return fmt.Errorf("invalid mode: %s", r.mode)
@@ -385,7 +384,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		}
 
 		// 只處理 golte_ 相關的資源
-		if !strings.Contains(path, "/golte_/") {
+		if !strings.Contains(path, "golte_/") {
 			continue
 		}
 
