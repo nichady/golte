@@ -67,7 +67,7 @@ type RenderData struct {
 }
 
 // Render renders a slice of entries into the writer.
-func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
+func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	r.mtx.Lock()
 	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
 	r.mtx.Unlock()
