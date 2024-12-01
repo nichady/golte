@@ -32,7 +32,7 @@ func New(fsys fs.FS) *Renderer {
 
 	r.vmPool.New = func() interface{} {
 		vm := goja.New()
-		vm.SetFieldNameMapper(fieldMapper{"json"})
+		vm.SetFieldNameMapper(NewFieldMapper("json"))
 
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
 			return fs.ReadFile(fsys, path)

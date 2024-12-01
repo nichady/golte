@@ -2,34 +2,52 @@ package render
 
 import (
 	"reflect"
-	"strings"
+	"sync"
 
 	"github.com/dop251/goja/parser"
 )
 
 // fieldMapper implements [goja.FieldNameMapper]
-// it maps fields using the specified tag if set, or simply the field name if tag is not set
 type fieldMapper struct {
 	tag string
+	// 使用 sync.Map 確保線程安全
+	mappings sync.Map
 }
 
-func (m fieldMapper) FieldName(_ reflect.Type, field reflect.StructField) string {
+// NewFieldMapper 創建一個新的 fieldMapper 實例
+func NewFieldMapper(tag string) *fieldMapper {
+	return &fieldMapper{
+		tag: tag,
+	}
+}
+
+func (m *fieldMapper) FieldName(t reflect.Type, field reflect.StructField) string {
+	key := t.Name() + "." + field.Name
+
+	if mapped, ok := m.mappings.Load(key); ok {
+		return mapped.(string)
+	}
+
 	tag, ok := field.Tag.Lookup(m.tag)
 	if !ok {
+		m.mappings.Store(key, field.Name)
 		return field.Name
 	}
 
-	idx := strings.IndexByte(tag, ',')
-	if idx != -1 {
-		tag = tag[:idx]
+	if tag == "" || tag == "-" {
+		m.mappings.Store(key, field.Name)
+		return field.Name
 	}
 
 	if parser.IsIdentifier(tag) {
+		m.mappings.Store(key, tag)
 		return tag
 	}
-	return ""
+
+	m.mappings.Store(key, field.Name)
+	return field.Name
 }
 
-func (_ fieldMapper) MethodName(_ reflect.Type, method reflect.Method) string {
+func (m *fieldMapper) MethodName(_ reflect.Type, method reflect.Method) string {
 	return method.Name
 }
