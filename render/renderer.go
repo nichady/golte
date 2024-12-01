@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -341,45 +342,47 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 	return nil, fmt.Errorf("file %s not found", filename)
 }
 
-// ConvertStructsToJSON 遞迴將 map[string]any 中的結構體轉換為 JSON 兼容的 map
+// ConvertStructsToJSON 遞迴將 map[string]any 和切片中的結構體轉換為 JSON 兼容的格式
 func ConvertStructsToJSON(data map[string]any) (map[string]any, error) {
 	converted := make(map[string]any)
 	for key, value := range data {
-		switch v := value.(type) {
-		case map[string]any:
-			// 遞迴處理內部的 map
-			innerMap, err := ConvertStructsToJSON(v)
-			if err != nil {
-				return nil, err
+		switch reflect.TypeOf(value).Kind() {
+		case reflect.Map:
+			// 遞迴處理 map
+			if v, ok := value.(map[string]any); ok {
+				innerMap, err := ConvertStructsToJSON(v)
+				if err != nil {
+					return nil, err
+				}
+				converted[key] = innerMap
+			} else {
+				converted[key] = value
 			}
-			converted[key] = innerMap
-		case []any:
-			// 遍歷切片處理每個元素
-			convertedSlice := make([]any, len(v))
-			for i, item := range v {
-				if itemMap, ok := item.(map[string]any); ok {
-					processedItem, err := ConvertStructsToJSON(itemMap)
+		case reflect.Slice:
+			// 處理切片
+			v := reflect.ValueOf(value)
+			convertedSlice := make([]any, v.Len())
+			for i := 0; i < v.Len(); i++ {
+				item := v.Index(i).Interface()
+				if reflect.TypeOf(item).Kind() == reflect.Struct {
+					// 將結構體轉換為 JSON 兼容格式
+					jsonData, err := json.Marshal(item)
 					if err != nil {
 						return nil, err
 					}
-					convertedSlice[i] = processedItem
+					var jsonMap map[string]any
+					if err := json.Unmarshal(jsonData, &jsonMap); err != nil {
+						return nil, err
+					}
+					convertedSlice[i] = jsonMap
 				} else {
 					convertedSlice[i] = item
 				}
 			}
 			converted[key] = convertedSlice
 		default:
-			// 將結構體轉換為 JSON 格式
-			if jsonData, err := json.Marshal(v); err == nil {
-				var jsonMap map[string]any
-				if err := json.Unmarshal(jsonData, &jsonMap); err == nil {
-					converted[key] = jsonMap
-				} else {
-					converted[key] = v // 如果無法解析，保留原始值
-				}
-			} else {
-				converted[key] = v
-			}
+			// 其他類型直接保留
+			converted[key] = value
 		}
 	}
 	return converted, nil
