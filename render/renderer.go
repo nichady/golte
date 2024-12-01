@@ -45,44 +45,50 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	r.vmPool.New = func() interface{} {
 		vm := goja.New()
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
+			fmt.Printf("Loading file: %s\n", path)
 			return fs.ReadFile(*serverDir, path)
 		})
 		registry.Enable(vm)
+
 		console.Enable(vm)
 		url.Enable(vm)
 
 		var renderfile renderfile
 		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
-			panic(fmt.Sprintf("Failed to load render.js: %v", err))
+			fmt.Printf("Error loading render.js: %v\n", err)
+			return nil
 		}
+
 		if renderfile.RenderJSON == nil {
-			panic("RenderJSON method in render.js is not initialized")
+			fmt.Println("Error: RenderJSON method is not initialized in render.js")
+			return nil
 		}
 
 		var infofile infofile
 		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
-			panic(fmt.Sprintf("Failed to load info.js: %v", err))
+			fmt.Printf("Error loading info.js: %v\n", err)
+			return nil
 		}
+
 		return vm
 	}
 
 	vm := r.vmPool.Get().(*goja.Runtime)
+	if vm == nil {
+		panic("Failed to initialize VM during Renderer creation")
+	}
 	defer r.vmPool.Put(vm)
 
-	var renderfile renderfile
-	if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
+	if err := vm.ExportTo(require.Require(vm, "./render.js"), &r.renderfile); err != nil {
 		panic(fmt.Sprintf("Failed to initialize render.js: %v", err))
 	}
-	if renderfile.RenderJSON == nil {
+	if r.renderfile.RenderJSON == nil {
 		panic("RenderJSON method in render.js is not initialized")
 	}
-	r.renderfile = renderfile
 
-	var infofile infofile
-	if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
+	if err := vm.ExportTo(require.Require(vm, "./info.js"), &r.infofile); err != nil {
 		panic(fmt.Sprintf("Failed to initialize info.js: %v", err))
 	}
-	r.infofile = infofile
 
 	return r
 }
