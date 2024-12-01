@@ -31,7 +31,7 @@ func New(serverFS *fs.FS, clientFS *fs.FS) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(*serverFS, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
-	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
+	vm.SetFieldNameMapper(NewFieldMapper("json"))
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
 		return fs.ReadFile(*serverFS, path)
