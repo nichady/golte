@@ -324,16 +324,37 @@ func extractAttributes(attrs []html.Attribute) map[string]string {
 	return attributes
 }
 
-// 新增函數來渲染完整的 HTML 標籤
+// 修改 renderNode 函數
 func renderNode(n *html.Node) string {
 	var buf bytes.Buffer
 
-	// 開始標
+	// 開始標籤
 	buf.WriteString("<")
 	buf.WriteString(n.Data)
 
-	// 寫入屬性
+	// 先找到 href/src 屬性
+	var mainAttr *html.Attribute
+	var otherAttrs []html.Attribute
+
 	for _, attr := range n.Attr {
+		if attr.Key == "href" || attr.Key == "src" {
+			mainAttr = &attr
+		} else {
+			otherAttrs = append(otherAttrs, attr)
+		}
+	}
+
+	// 先寫入 href/src 屬性（如果存在）
+	if mainAttr != nil {
+		buf.WriteString(" ")
+		buf.WriteString(mainAttr.Key)
+		buf.WriteString("=\"")
+		buf.WriteString(html.EscapeString(mainAttr.Val))
+		buf.WriteString("\"")
+	}
+
+	// 再寫入其他屬性
+	for _, attr := range otherAttrs {
 		buf.WriteString(" ")
 		buf.WriteString(attr.Key)
 		buf.WriteString("=\"")
