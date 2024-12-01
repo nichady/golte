@@ -321,20 +321,15 @@ func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry)
 		}
 
 		if replacement != "" {
-			// 建立靈活的正則表達式匹配標籤
-			attrPattern := ""
-			for key, value := range resource.Attributes {
-				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
-			}
-
-			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
-			re := regexp.MustCompile(tagPattern)
+			// 使用原始的完整標籤作為匹配模式
+			escapedTag := regexp.QuoteMeta(resource.FullTag)
+			re := regexp.MustCompile(escapedTag)
 
 			if re.MatchString(*html) {
 				*html = re.ReplaceAllString(*html, replacement)
 				replacementCount++
 			} else {
-				fmt.Printf("No match found for tag: %s\n", tagPattern)
+				fmt.Printf("No match found for tag: %s\n", escapedTag)
 			}
 		}
 	}
