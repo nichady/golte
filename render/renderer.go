@@ -26,14 +26,14 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(fsys *fs.FS) *Renderer {
-	tmpl := template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html")
+func New(fsys fs.FS) *Renderer {
+	tmpl := template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
 	vm.SetFieldNameMapper(fieldMapper{"json"})
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-		return fs.ReadFile(*fsys, path)
+		return fs.ReadFile(fsys, path)
 	}).Enable(vm)
 
 	console.Enable(vm)
