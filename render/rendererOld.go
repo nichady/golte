@@ -70,22 +70,24 @@ type RenderData struct {
 func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	r.mtx.Lock()
 	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
-	resources, err := extractResourcePaths(&result.Head)
+	if err != nil {
+		return fmt.Errorf("render error: %w", err)
+	}
+
+	html := result.Head
+	resources, err := extractResourcePaths(&html)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
 		return fmt.Errorf("resource extraction error: %w", err)
 	}
 
-	err = r.replaceResourcePaths(&result.Head, resources)
+	err = r.replaceResourcePaths(&html, resources)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
 		return fmt.Errorf("resource replacement error: %w", err)
 	}
+	result.Head = html
 	r.mtx.Unlock()
-
-	if err != nil {
-		return err
-	}
 
 	if result.HasError {
 		w.WriteHeader(http.StatusInternalServerError)
