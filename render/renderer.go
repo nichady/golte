@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -84,13 +85,38 @@ type RenderData struct {
 	SCData  SvelteContextData
 }
 
-// Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	entries := make([]*Entry, len(data.Entries))
-	for i := range data.Entries {
-		entries[i] = &data.Entries[i]
+	// 將 RenderData 轉換為 JSON 兼容格式
+	dataMap := map[string]any{
+		"entries": data.Entries,
+		"errPage": data.ErrPage,
+		"scData":  data.SCData,
 	}
 
+	convertedData, err := ConvertStructsToJSON(dataMap)
+	if err != nil {
+		http.Error(w, "Internal Server Error: Data Conversion Failed", http.StatusInternalServerError)
+		fmt.Printf("Data conversion error: %v\n", err)
+		return err
+	}
+
+	// 提取轉換後的資料
+	entries := convertedData["entries"].([]any) // JSON 格式的資料
+	scData := convertedData["scData"].(map[string]any)
+	errPage := convertedData["errPage"].(string)
+
+	// 轉換 entries 為正確的類型
+	tTypedEntries := make([]*Entry, len(entries))
+	for i, e := range entries {
+		if entryMap, ok := e.(map[string]any); ok {
+			tTypedEntries[i] = &Entry{
+				Comp:  entryMap["Comp"].(string),
+				Props: entryMap["Props"].(map[string]any),
+			}
+		}
+	}
+
+	// 處理 VM
 	vm, ok := r.vmPool.Get().(*goja.Runtime)
 	if !ok {
 		http.Error(w, "Internal Server Error: VM Pool Error", http.StatusInternalServerError)
@@ -99,10 +125,14 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 	defer r.vmPool.Put(vm)
 
+	// 使用轉換後的資料進行渲染
 	var result *result
-	var err error
+	typedSCData := &SvelteContextData{
+		URL: scData["URL"].(string),
+	}
+
 	r.mutex.Lock()
-	result, err = r.renderfile.Render(entries, &data.SCData, data.ErrPage)
+	result, err = r.renderfile.Render(tTypedEntries, typedSCData, errPage)
 	r.mutex.Unlock()
 	if err != nil {
 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
@@ -117,6 +147,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
+	// 渲染模板
 	var buf bytes.Buffer
 	if err := r.template.Execute(&buf, result); err != nil {
 		http.Error(w, "Internal Server Error: Template Execution Failed", http.StatusInternalServerError)
@@ -124,6 +155,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 		return err
 	}
 
+	// 處理 HTML 資源
 	html := buf.String()
 	resources, err := extractResourcePaths(&html)
 	if err != nil {
@@ -294,4 +326,48 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("file %s not found", filename)
+}
+
+// ConvertStructsToJSON 遞迴將 map[string]any 中的結構體轉換為 JSON 兼容的 map
+func ConvertStructsToJSON(data map[string]any) (map[string]any, error) {
+	converted := make(map[string]any)
+	for key, value := range data {
+		switch v := value.(type) {
+		case map[string]any:
+			// 遞迴處理內部的 map
+			innerMap, err := ConvertStructsToJSON(v)
+			if err != nil {
+				return nil, err
+			}
+			converted[key] = innerMap
+		case []any:
+			// 遍歷切片處理每個元素
+			convertedSlice := make([]any, len(v))
+			for i, item := range v {
+				if itemMap, ok := item.(map[string]any); ok {
+					processedItem, err := ConvertStructsToJSON(itemMap)
+					if err != nil {
+						return nil, err
+					}
+					convertedSlice[i] = processedItem
+				} else {
+					convertedSlice[i] = item
+				}
+			}
+			converted[key] = convertedSlice
+		default:
+			// 將結構體轉換為 JSON 格式
+			if jsonData, err := json.Marshal(v); err == nil {
+				var jsonMap map[string]any
+				if err := json.Unmarshal(jsonData, &jsonMap); err == nil {
+					converted[key] = jsonMap
+				} else {
+					converted[key] = v // 如果無法解析，保留原始值
+				}
+			} else {
+				converted[key] = v
+			}
+		}
+	}
+	return converted, nil
 }
