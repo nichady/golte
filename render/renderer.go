@@ -1,20 +1,26 @@
 package render
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"sync"
 	"text/template"
 
+	"strings"
+
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/dop251/goja_nodejs/url"
+	"golang.org/x/net/html"
 )
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
+	fsys       *fs.FS
 	renderfile renderfile
 	infofile   infofile
 
@@ -27,6 +33,7 @@ type Renderer struct {
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys *fs.FS) *Renderer {
 	r := &Renderer{
+		fsys:     fsys,
 		template: template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html"),
 	}
 
@@ -100,7 +107,31 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) err
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Vary", "Golte")
 
-		return r.template.Execute(w, result)
+		var buf bytes.Buffer
+		err = r.template.Execute(&buf, result)
+		if err != nil {
+			return err
+		}
+
+		html := buf.String()
+
+		// 解析資源路徑
+		resources, err := extractResourcePaths(&html)
+		if err != nil {
+			return err
+		}
+
+		// 將資源資訊添加到結果中
+		result.Resources = resources
+
+		// 替換資源引用
+		err = r.replaceResourcePaths(&html, resources)
+		if err != nil {
+			return err
+		}
+
+		_, err = w.Write([]byte(html))
+		return err
 	}
 
 	resp := &csrResponse{
@@ -133,9 +164,10 @@ func (r *Renderer) Assets() string {
 }
 
 type result struct {
-	Head     string
-	Body     string
-	HasError bool
+	Head      string
+	Body      string
+	HasError  bool
+	Resources map[string]ResourceInfo
 }
 
 type renderfile struct {
@@ -169,4 +201,175 @@ type responseEntry struct {
 
 type infofile struct {
 	Assets string
+}
+
+type ResourceInfo struct {
+	TagName    string
+	FullTag    string // 儲存完整的 HTML 標籤
+	Attributes map[string]string
+}
+
+func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) {
+	doc, err := html.Parse(strings.NewReader(*htmlContent))
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make(map[string]ResourceInfo)
+
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "script":
+				for _, attr := range n.Attr {
+					if attr.Key == "src" {
+						resources[attr.Val] = ResourceInfo{
+							TagName:    "script",
+							FullTag:    renderNode(n),
+							Attributes: extractAttributes(n.Attr),
+						}
+					}
+				}
+			case "link":
+				for _, attr := range n.Attr {
+					if attr.Key == "href" {
+						resources[attr.Val] = ResourceInfo{
+							TagName:    "link",
+							FullTag:    renderNode(n),
+							Attributes: extractAttributes(n.Attr),
+						}
+					}
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
+	}
+
+	traverse(doc)
+	return resources, nil
+}
+
+func extractAttributes(attrs []html.Attribute) map[string]string {
+	attributes := make(map[string]string)
+	for _, attr := range attrs {
+		attributes[attr.Key] = attr.Val
+	}
+	return attributes
+}
+
+// 新增函數來渲染完整的 HTML 標籤
+func renderNode(n *html.Node) string {
+	var buf bytes.Buffer
+
+	// 開始標
+	buf.WriteString("<")
+	buf.WriteString(n.Data)
+
+	// 寫入屬性
+	for _, attr := range n.Attr {
+		buf.WriteString(" ")
+		buf.WriteString(attr.Key)
+		buf.WriteString("=\"")
+		buf.WriteString(html.EscapeString(attr.Val))
+		buf.WriteString("\"")
+	}
+
+	if n.FirstChild != nil {
+		buf.WriteString(">")
+		// 遞迴渲染子節點
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == html.TextNode {
+				buf.WriteString(html.EscapeString(c.Data))
+			} else {
+				buf.WriteString(renderNode(c))
+			}
+		}
+		buf.WriteString("</")
+		buf.WriteString(n.Data)
+		buf.WriteString(">")
+	} else {
+		// 自閉合標籤
+		buf.WriteString("/>")
+	}
+
+	return buf.String()
+}
+
+// 修改輔助函數來搜尋兩層路徑的檔案
+func findFileInFS(fsys fs.FS, twoLevelPath string) ([]byte, error) {
+	var content []byte
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			// 取得路徑的最後兩層
+			parts := strings.Split(path, "/")
+			if len(parts) >= 2 {
+				lastTwo := strings.Join(parts[len(parts)-2:], "/")
+				if lastTwo == twoLevelPath {
+					content, err = fs.ReadFile(fsys, path)
+					if err != nil {
+						return err
+					}
+					return fs.SkipAll
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if content == nil {
+		return nil, fs.ErrNotExist
+	}
+	return content, nil
+}
+
+// 修改 replaceResourcePaths 函數
+func (r *Renderer) replaceResourcePaths(html *string, resources map[string]ResourceInfo) error {
+	for path, resource := range resources {
+		var content []byte
+		var err error
+
+		// 先嘗試完整路徑
+		content, err = fs.ReadFile(*r.fsys, strings.TrimPrefix(path, "/"))
+		if err != nil {
+			// 如果失敗，嘗試使用最後兩層路徑
+			parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+			if len(parts) >= 2 {
+				twoLevelPath := strings.Join(parts[len(parts)-2:], "/")
+				content, err = findFileInFS(*r.fsys, twoLevelPath)
+			}
+			if err != nil {
+				continue
+			}
+		}
+
+		var replacement string
+		switch resource.TagName {
+		case "script":
+			replacement = "<script"
+			for key, value := range resource.Attributes {
+				if key != "src" {
+					replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
+				}
+			}
+			replacement += ">\n" + string(content) + "\n</script>"
+
+		case "link":
+			if resource.Attributes["rel"] == "stylesheet" {
+				replacement = "<style>\n" + string(content) + "\n</style>"
+			} else {
+				continue
+			}
+		}
+
+		*html = strings.Replace(*html, resource.FullTag, replacement, 1)
+	}
+	return nil
 }
