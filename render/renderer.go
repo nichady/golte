@@ -110,7 +110,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 		return fmt.Errorf("invalid entries format")
 	}
 
-	// 將 []any 轉換為 []*Entry
+	// 轉換 entries 為正確的類型
 	entries := make([]*Entry, len(entriesSlice))
 	for i, e := range entriesSlice {
 		entryMap, ok := e.(map[string]any)
@@ -120,11 +120,16 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 			return fmt.Errorf("invalid entry data")
 		}
 
-		entry := &Entry{
-			Comp:  entryMap["Comp"].(string),
-			Props: entryMap["Props"].(map[string]any),
+		// 安全處理 Props，確保不為 nil
+		props, ok := entryMap["Props"].(map[string]any)
+		if !ok || props == nil {
+			props = make(map[string]any) // 如果 Props 為 nil，提供一個空的 map
 		}
-		entries[i] = entry
+
+		entries[i] = &Entry{
+			Comp:  entryMap["Comp"].(string),
+			Props: props,
+		}
 	}
 
 	// 提取其他資料
