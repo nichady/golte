@@ -318,26 +318,19 @@ func renderNode(n *html.Node) string {
 	return buf.String()
 }
 
-// 修��輔助函數來搜尋兩層路徑的檔案
-func findFileInFS(fsys fs.FS, twoLevelPath string) ([]byte, error) {
+// 修改輔助函數來搜尋檔案
+func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
 	var content []byte
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() {
-			// 取得路徑的最後兩層
-			parts := strings.Split(path, "/")
-			if len(parts) >= 2 {
-				lastTwo := strings.Join(parts[len(parts)-2:], "/")
-				if lastTwo == twoLevelPath {
-					content, err = fs.ReadFile(fsys, path)
-					if err != nil {
-						return err
-					}
-					return fs.SkipAll
-				}
+		if !d.IsDir() && d.Name() == filename {
+			content, err = fs.ReadFile(fsys, path)
+			if err != nil {
+				return err
 			}
+			return fs.SkipAll
 		}
 		return nil
 	})
@@ -369,22 +362,15 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 
 		fmt.Printf("Processing resource: %s\n", path)
 
-		// 移除 /golte_/ 前綴，只保留後面的路徑
-		trimmedPath := strings.TrimPrefix(path, "/golte_/")
+		// 取得檔名
+		parts := strings.Split(path, "/")
+		filename := parts[len(parts)-1]
 
-		// 先嘗試直接讀取
-		content, err = fs.ReadFile(*r.fsys, trimmedPath)
+		// 在所有子目錄中搜尋檔案
+		content, err = findFileInFS(*r.fsys, filename)
 		if err != nil {
-			// 如果失敗，嘗試使用最後兩層路徑
-			parts := strings.Split(trimmedPath, "/")
-			if len(parts) >= 2 {
-				twoLevelPath := strings.Join(parts[len(parts)-2:], "/")
-				content, err = findFileInFS(*r.fsys, twoLevelPath)
-			}
-			if err != nil {
-				fmt.Printf("Resource not found: %v\n", err)
-				continue
-			}
+			fmt.Printf("Resource not found: %v\n", err)
+			continue
 		}
 
 		var replacement string
