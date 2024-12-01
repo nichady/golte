@@ -101,20 +101,37 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 
 	// 提取轉換後的資料
-	entries := convertedData["entries"].([]any) // JSON 格式的資料
-	scData := convertedData["scData"].(map[string]any)
-	errPage := convertedData["errPage"].(string)
-
-	// 轉換 entries 為正確的類型
-	tTypedEntries := make([]*Entry, len(entries))
-	for i, e := range entries {
-		if entryMap, ok := e.(map[string]any); ok {
-			tTypedEntries[i] = &Entry{
-				Comp:  entryMap["Comp"].(string),
-				Props: entryMap["Props"].(map[string]any),
-			}
-		}
+	entriesRaw := convertedData["entries"]
+	entriesSlice, ok := entriesRaw.([]any)
+	if !ok {
+		http.Error(w, "Internal Server Error: Invalid Entries Format", http.StatusInternalServerError)
+		fmt.Printf("Invalid entries format: %v\n", entriesRaw)
+		return fmt.Errorf("invalid entries format")
 	}
+
+	// 將 []any 轉換為 []*Entry
+	entries := make([]*Entry, len(entriesSlice))
+	for i, e := range entriesSlice {
+		entryMap, ok := e.(map[string]any)
+		if !ok {
+			http.Error(w, "Internal Server Error: Invalid Entry Data", http.StatusInternalServerError)
+			fmt.Printf("Invalid entry data: %v\n", e)
+			return fmt.Errorf("invalid entry data")
+		}
+
+		entry := &Entry{
+			Comp:  entryMap["Comp"].(string),
+			Props: entryMap["Props"].(map[string]any),
+		}
+		entries[i] = entry
+	}
+
+	// 提取其他資料
+	scDataRaw := convertedData["scData"].(map[string]any)
+	typedSCData := &SvelteContextData{
+		URL: scDataRaw["URL"].(string),
+	}
+	errPage := convertedData["errPage"].(string)
 
 	// 處理 VM
 	vm, ok := r.vmPool.Get().(*goja.Runtime)
@@ -127,12 +144,8 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 
 	// 使用轉換後的資料進行渲染
 	var result *result
-	typedSCData := &SvelteContextData{
-		URL: scData["URL"].(string),
-	}
-
 	r.mutex.Lock()
-	result, err = r.renderfile.Render(tTypedEntries, typedSCData, errPage)
+	result, err = r.renderfile.Render(entries, typedSCData, errPage)
 	r.mutex.Unlock()
 	if err != nil {
 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
