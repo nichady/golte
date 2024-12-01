@@ -2,6 +2,8 @@
 
 `sveltigo` is an enhancement of [`Golte`](https://github.com/nichady/golte), a library for Go that allows you to render Svelte components in your http handlers, supporting SSR+hydration capabilities without requiring NodeJS.
 
+`sveltigo` tries to render all CSS on the server side, and hydrates JavaScripts.
+
 ## Features
 
 - SSR + Hydration
@@ -22,6 +24,10 @@
 4. After running `go build`, the end result is a single binary that houses a full web app, with complete support for SSR and hydration.
 
 ## Installing
+
+> [!INFO]
+> You can use [golte-cli](https://github.com/TimLai666/golte-cli) to run and build your project.
+> For Sveltigo projects, just add `--sveltigo` to the `run`, `build` or `dev` command.
 
 ### Prerequisites
 
