@@ -20,13 +20,13 @@ type Props = map[string]any
 // It will allow you to use [Layout], [AddLayout], [Page], and [RenderPage].
 // It should be mounted on the root of your router.
 // The middleware should not be mounted on routes other than the root.
-func New(fsys fs.FS) func(http.Handler) http.Handler {
-	serverDir, err := fs.Sub(fsys, "server")
+func New(fsys *fs.FS) func(http.Handler) http.Handler {
+	serverDir, err := fs.Sub(*fsys, "server")
 	if err != nil {
 		panic(err)
 	}
 
-	clientDir, err := fs.Sub(fsys, "client")
+	clientDir, err := fs.Sub(*fsys, "client")
 	if err != nil {
 		panic(err)
 	}
@@ -40,18 +40,22 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 				return
 			}
 
-			scheme := "http"
+			var urlBuilder strings.Builder
+			urlBuilder.WriteString("http")
 			if r.TLS != nil {
-				scheme += "s"
+				urlBuilder.WriteByte('s')
 			}
+			urlBuilder.WriteString("://")
+			urlBuilder.WriteString(r.Host)
+			urlBuilder.WriteString(r.URL.String())
 
 			ctx := context.WithValue(r.Context(), contextKey{}, &RenderContext{
-				Renderer: renderer,
-				ErrPage:  "$$$GOLTE_DEFAULT_ERROR$$$",
-
-				csr: r.Header["Golte"] != nil,
+				Renderer:   renderer,
+				Components: make([]render.Entry, 0, 4),
+				ErrPage:    "$$$GOLTE_DEFAULT_ERROR$$$",
+				csr:        r.Header["Golte"] != nil,
 				scdata: render.SvelteContextData{
-					URL: scheme + "://" + r.Host + r.URL.String(),
+					URL: urlBuilder.String(),
 				},
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
