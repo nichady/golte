@@ -20,7 +20,8 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	fsys       *fs.FS
+	serverDir  *fs.FS
+	clientDir  *fs.FS
 	renderfile renderfile
 	infofile   infofile
 
@@ -31,10 +32,10 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(fsys *fs.FS) *Renderer {
+func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	// 列出 fsys 中的所有檔案，包含完整路徑
 	fmt.Println("=== Listing all files in fsys ===")
-	fs.WalkDir(*fsys, ".", func(path string, d fs.DirEntry, err error) error {
+	fs.WalkDir(*serverDir, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -46,8 +47,9 @@ func New(fsys *fs.FS) *Renderer {
 	fmt.Println("=== End of file listing ===")
 
 	r := &Renderer{
-		fsys:     fsys,
-		template: template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html"),
+		serverDir: serverDir,
+		clientDir: clientDir,
+		template:  template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),
 	}
 
 	r.vmPool.New = func() interface{} {
@@ -55,7 +57,7 @@ func New(fsys *fs.FS) *Renderer {
 		vm.SetFieldNameMapper(NewFieldMapper("json"))
 
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-			return fs.ReadFile(*fsys, path)
+			return fs.ReadFile(*r.serverDir, path)
 		})
 		registry.Enable(vm)
 
@@ -323,22 +325,22 @@ func renderNode(n *html.Node) string {
 }
 
 // 修改輔助函數來搜尋檔案
-func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
+func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 	fmt.Printf("Searching for file: %s\n", filename)
 
 	// 嘗試在 server 和 client 的子目錄中搜尋
 	searchPaths := []string{
-		"server",         // server 目錄
-		"client/assets",  // client 的 assets 目錄
-		"client/entries", // client 的 entries 目錄
-		"client/chunks",  // client 的 chunks 目錄
+		"/",       // 根目錄
+		"assets",  // client的assets目錄
+		"entries", // client的entries目錄
+		"chunks",  // client的chunks目錄
 	}
 
 	for _, basePath := range searchPaths {
 		fullPath := basePath + "/" + filename
 		fmt.Printf("Trying path: %s\n", fullPath)
 
-		content, err := fs.ReadFile(fsys, fullPath)
+		content, err := fs.ReadFile(clientDir, fullPath)
 		if err == nil {
 			fmt.Printf("Found file at: %s\n", fullPath)
 			return content, nil
@@ -372,7 +374,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		filename := parts[len(parts)-1]
 
 		// 在所有子目錄中搜尋檔案
-		content, err = findFileInFS(*r.fsys, filename)
+		content, err = findFileInFS(*r.clientDir, filename)
 		if err != nil {
 			fmt.Printf("Resource not found: %v\n", err)
 			continue

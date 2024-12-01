@@ -31,7 +31,7 @@ func New(fsys fs.FS) func(http.Handler) http.Handler {
 		panic(err)
 	}
 
-	renderer := render.New(&serverDir)
+	renderer := render.New(&serverDir, &clientDir)
 	assets := http.StripPrefix("/"+renderer.Assets()+"/", fileServer(clientDir))
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
