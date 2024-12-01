@@ -97,9 +97,8 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData, csr bool) erro
 	}
 
 	resp.ErrPage = responseEntry{
-		File:  r.renderfile.Manifest[data.ErrPage].Client,
-		CSS:   r.renderfile.Manifest[data.ErrPage].CSS,
-		Props: map[string]any{},
+		File: r.renderfile.Manifest[data.ErrPage].Client,
+		CSS:  r.renderfile.Manifest[data.ErrPage].CSS,
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
