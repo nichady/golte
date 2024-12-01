@@ -25,9 +25,9 @@ type Renderer struct {
 // New constructs a renderer from the given FS.
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
-func New(fsys fs.FS) *Renderer {
+func New(fsys *fs.FS) *Renderer {
 	r := &Renderer{
-		template: template.Must(template.New("").ParseFS(fsys, "template.html")).Lookup("template.html"),
+		template: template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html"),
 	}
 
 	r.vmPool.New = func() interface{} {
@@ -35,7 +35,7 @@ func New(fsys fs.FS) *Renderer {
 		vm.SetFieldNameMapper(NewFieldMapper("json"))
 
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-			return fs.ReadFile(fsys, path)
+			return fs.ReadFile(*fsys, path)
 		})
 		registry.Enable(vm)
 
