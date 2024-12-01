@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
@@ -112,6 +113,12 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) err
 		// 修改 HTML 內容，注入內聯資源
 		head := origResult.Head
 		body := origResult.Body
+
+		// 移除 <head> 內的 <style> 標籤及內容，使用正則表達式
+		head = regexp.MustCompile(`<style[^>]*>.*?</style>`).ReplaceAllString(head, "")
+
+		// 移除 <body> 內的 <script> 標籤及內容，使用正則表達式
+		body = regexp.MustCompile(`<script[^>]*>.*?</script>`).ReplaceAllString(body, "")
 
 		// 在 </head> 前注入 CSS
 		if r.inlineCSS != "" {
