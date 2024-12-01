@@ -325,34 +325,25 @@ func renderNode(n *html.Node) string {
 // 修改輔助函數來搜尋檔案
 func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
 	fmt.Printf("Searching for file: %s\n", filename)
-	var foundPath string
-	var content []byte
-	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			fmt.Printf("Checking file: %s\n", path)
-			if d.Name() == filename {
-				foundPath = path
-				var err error
-				content, err = fs.ReadFile(fsys, path)
-				if err != nil {
-					return err
-				}
-				return fs.SkipAll
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+
+	// 嘗試在 server 和 client 目錄中搜尋
+	searchPaths := []string{
+		"server", // server 目錄
+		"client", // client 目錄
 	}
-	if content == nil {
-		return nil, fmt.Errorf("file %s not found in any directory", filename)
+
+	for _, basePath := range searchPaths {
+		fullPath := basePath + "/" + filename
+		fmt.Printf("Trying path: %s\n", fullPath)
+
+		content, err := fs.ReadFile(fsys, fullPath)
+		if err == nil {
+			fmt.Printf("Found file at: %s\n", fullPath)
+			return content, nil
+		}
 	}
-	fmt.Printf("Found file at: %s\n", foundPath)
-	return content, nil
+
+	return nil, fmt.Errorf("file %s not found in server or client directories", filename)
 }
 
 // 修改 replaceResourcePaths 函數
