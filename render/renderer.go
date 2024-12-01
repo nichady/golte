@@ -306,8 +306,8 @@ func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry)
 
 		var replacement string
 		switch resource.TagName {
-		case "script":
-			replacement = fmt.Sprintf("<script>%s</script>", string(content))
+		// case "script":
+		// 	replacement = fmt.Sprintf("<script>%s</script>", string(content))
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
 				replacement = fmt.Sprintf("<style>%s</style>", string(content))
