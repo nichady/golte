@@ -380,11 +380,13 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 	for path, resource := range resources {
 		// 跳過外部資源（CDN）
 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			fmt.Printf("Skipping external resource: %s\n", path)
 			continue
 		}
 
 		// 只處理 golte_ 相關的資源
 		if !strings.Contains(path, "golte_/") {
+			fmt.Printf("Skipping non-golte resource: %s\n", path)
 			continue
 		}
 
@@ -412,18 +414,26 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 				}
 			}
 			replacement += ">\n" + string(content) + "\n</script>"
+			fmt.Printf("Replacing script: %s\n", resource.FullTag)
 
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
 				// CSS 內聯
 				replacement = "<style data-source=\"" + filename + "\">\n" + string(content) + "\n</style>"
+				fmt.Printf("Replacing CSS: %s\n", resource.FullTag)
 			}
 		}
 
 		// 直接使用 FullTag 進行替換
 		if replacement != "" {
+			oldContent := *html
 			*html = strings.Replace(*html, resource.FullTag, replacement, 1)
-			replacementCount++
+			if oldContent == *html {
+				fmt.Printf("Warning: Failed to replace %s\n", resource.FullTag)
+			} else {
+				replacementCount++
+				fmt.Printf("Successfully replaced %s\n", resource.FullTag)
+			}
 		}
 	}
 
