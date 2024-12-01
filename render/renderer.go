@@ -89,42 +89,61 @@ type RenderData struct {
 	SCData  SvelteContextData
 }
 
-// Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	if r.mode == "SSR" {
 		fmt.Println("Rendering using SSR Mode")
 	}
 
+	// 複製 entries，確保原始資料不被修改
 	entries := make([]*Entry, len(data.Entries))
 	for i := range data.Entries {
 		entries[i] = &data.Entries[i]
 	}
 
-	vm := r.vmPool.Get().(*goja.Runtime)
-	result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
-	r.vmPool.Put(vm)
+	// 從 VM 池取得一個實例
+	vm, ok := r.vmPool.Get().(*goja.Runtime)
+	if !ok {
+		http.Error(w, "Internal Server Error: VM Pool Error", http.StatusInternalServerError)
+		fmt.Println("VM Pool returned invalid runtime")
+		return fmt.Errorf("vm pool returned invalid runtime")
+	}
+	defer r.vmPool.Put(vm)
 
+	// 執行 Render 方法
+	result, err := r.renderfile.Render(entries, &data.SCData, data.ErrPage)
 	if err != nil {
+		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
+		fmt.Printf("Render error: %v\n", err)
 		return err
 	}
 
+	// 檢查是否有錯誤
 	if result.HasError {
-		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return nil
 	}
 
+	// 設定回應標頭
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
+	// 渲染 HTML 模版
 	var buf bytes.Buffer
 	err = r.template.Execute(&buf, result)
 	if err != nil {
+		http.Error(w, "Internal Server Error: Template Execution Failed", http.StatusInternalServerError)
+		fmt.Printf("Template execution error: %v\n", err)
 		return err
 	}
 
 	html := buf.String()
+
+	// 資源替換（僅限於 SSR 模式）
 	if r.mode == "SSR" {
 		resources, err := extractResourcePaths(&html)
 		if err != nil {
+			http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
+			fmt.Printf("Resource extraction error: %v\n", err)
 			return err
 		}
 
@@ -132,12 +151,74 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 
 		err = r.replaceResourcePaths(&html, resources)
 		if err != nil {
+			http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
+			fmt.Printf("Resource replacement error: %v\n", err)
 			return err
 		}
 	}
 
+	// 寫入回應
 	_, err = w.Write([]byte(html))
+	if err != nil {
+		fmt.Printf("Write response error: %v\n", err)
+	}
 	return err
+}
+
+func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
+	fileCache := sync.Map{}
+	replacementCount := 0
+
+	for _, entry := range resources {
+		path := entry.Path
+		resource := entry.Resource
+
+		// 跳過外部資源
+		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			continue
+		}
+
+		// 提取檔名
+		filename := path[strings.LastIndex(path, "/")+1:]
+		content, ok := fileCache.Load(filename)
+		if !ok {
+			// 嘗試從文件系統讀取檔案
+			data, err := findFileInFS(*r.clientDir, filename)
+			if err != nil {
+				fmt.Printf("Failed to find file: %s, error: %v\n", filename, err)
+				continue
+			}
+			content = data
+			fileCache.Store(filename, data)
+		}
+
+		// 構建替換內容
+		var replacement string
+		if resource.TagName == "link" && resource.Attributes["rel"] == "stylesheet" {
+			replacement = fmt.Sprintf("<style>%s</style>", string(content.([]byte)))
+		}
+
+		if replacement != "" {
+			// 使用正則表達式替換標籤
+			attrPattern := ""
+			for key, value := range resource.Attributes {
+				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
+			}
+
+			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
+			re := regexp.MustCompile(tagPattern)
+
+			if re.MatchString(*html) {
+				*html = re.ReplaceAllString(*html, replacement)
+				replacementCount++
+			} else {
+				fmt.Printf("No match found for tag: %s\n", tagPattern)
+			}
+		}
+	}
+
+	fmt.Printf("Total replacements made: %d\n", replacementCount)
+	return nil
 }
 
 type renderfile struct {
@@ -286,62 +367,62 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 	return nil, fmt.Errorf("file %s not found", filename)
 }
 
-func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
-	fileCache := make(map[string][]byte)
-	replacementCount := 0
+// func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
+// 	fileCache := make(map[string][]byte)
+// 	replacementCount := 0
 
-	for _, entry := range resources {
-		path := entry.Path
-		resource := entry.Resource
+// 	for _, entry := range resources {
+// 		path := entry.Path
+// 		resource := entry.Resource
 
-		// 跳過外部資源
-		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-			continue
-		}
+// 		// 跳過外部資源
+// 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+// 			continue
+// 		}
 
-		// 提取檔名
-		filename := path[strings.LastIndex(path, "/")+1:]
-		content, cached := fileCache[filename]
-		if !cached {
-			var err error
-			content, err = findFileInFS(*r.clientDir, filename)
-			if err != nil {
-				fmt.Printf("Failed to find file: %s\n", filename)
-				continue
-			}
-			fileCache[filename] = content
-		}
+// 		// 提取檔名
+// 		filename := path[strings.LastIndex(path, "/")+1:]
+// 		content, cached := fileCache[filename]
+// 		if !cached {
+// 			var err error
+// 			content, err = findFileInFS(*r.clientDir, filename)
+// 			if err != nil {
+// 				fmt.Printf("Failed to find file: %s\n", filename)
+// 				continue
+// 			}
+// 			fileCache[filename] = content
+// 		}
 
-		// 構建替換內容
-		var replacement string
-		switch resource.TagName {
-		// case "script":
-		// 	replacement = fmt.Sprintf("<script>%s</script>", string(content))
-		case "link":
-			if resource.Attributes["rel"] == "stylesheet" {
-				replacement = fmt.Sprintf("<style>%s</style>", string(content))
-			}
-		}
+// 		// 構建替換內容
+// 		var replacement string
+// 		switch resource.TagName {
+// 		// case "script":
+// 		// 	replacement = fmt.Sprintf("<script>%s</script>", string(content))
+// 		case "link":
+// 			if resource.Attributes["rel"] == "stylesheet" {
+// 				replacement = fmt.Sprintf("<style>%s</style>", string(content))
+// 			}
+// 		}
 
-		if replacement != "" {
-			// 建立靈活的正則表達式匹配標籤
-			attrPattern := ""
-			for key, value := range resource.Attributes {
-				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
-			}
+// 		if replacement != "" {
+// 			// 建立靈活的正則表達式匹配標籤
+// 			attrPattern := ""
+// 			for key, value := range resource.Attributes {
+// 				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
+// 			}
 
-			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
-			re := regexp.MustCompile(tagPattern)
+// 			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
+// 			re := regexp.MustCompile(tagPattern)
 
-			if re.MatchString(*html) {
-				*html = re.ReplaceAllString(*html, replacement)
-				replacementCount++
-			} else {
-				fmt.Printf("No match found for tag: %s\n", tagPattern)
-			}
-		}
-	}
+// 			if re.MatchString(*html) {
+// 				*html = re.ReplaceAllString(*html, replacement)
+// 				replacementCount++
+// 			} else {
+// 				fmt.Printf("No match found for tag: %s\n", tagPattern)
+// 			}
+// 		}
+// 	}
 
-	fmt.Printf("Total replacements made: %d\n", replacementCount)
-	return nil
-}
+// 	fmt.Printf("Total replacements made: %d\n", replacementCount)
+// 	return nil
+// }
