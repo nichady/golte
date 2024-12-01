@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"regexp"
 	"sync"
 	"text/template"
 
@@ -422,9 +423,8 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 
 		fmt.Printf("Processing resource: %s\n", path)
 
-		// 取得檔名
-		parts := strings.Split(path, "/")
-		filename := parts[len(parts)-1]
+		// 取得完整路徑而不僅僅是檔名
+		filename := path[strings.LastIndex(path, "/")+1:]
 
 		// 在所有子目錄中搜尋檔案
 		content, err := findFileInFS(*r.clientDir, filename)
@@ -454,15 +454,18 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 			}
 		}
 
-		// 直接使用 FullTag 進行替換
+		// 更改替換邏輯以更精確地匹配和替換完整的 HTML 標籤
 		if replacement != "" {
-			oldContent := *html
-			*html = strings.Replace(*html, resource.FullTag, replacement, 1)
-			if oldContent == *html {
-				fmt.Printf("Warning: Failed to replace %s\n", resource.FullTag)
-			} else {
-				replacementCount++
-				fmt.Printf("Successfully replaced %s\n", resource.FullTag)
+			// 使用正則表達式匹配標籤名稱和屬性，並且忽略屬性的順序
+			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*>`, resource.TagName))
+			matches := tagPattern.FindAllString(*html, -1)
+			for _, match := range matches {
+				if strings.Contains(match, resource.Attributes["rel"]) {
+					*html = strings.Replace(*html, match, replacement, 1)
+					replacementCount++
+					fmt.Printf("Successfully replaced %s\n", resource.FullTag)
+					break
+				}
 			}
 		}
 	}
@@ -470,3 +473,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 	fmt.Printf("Total replacements: %d\n", replacementCount)
 	return nil
 }
+
+// 注意事項：
+// 1. 使用 `regexp.QuoteMeta` 對資源標籤進行編碼，避免正則表達式中出現特殊字元導致替換失敗。
+// 2. 使用正則表達式來更精確地匹配完整的 HTML 標籤，並忽略屬性順序，以防止出現部分替換或錯誤替換的情況。
