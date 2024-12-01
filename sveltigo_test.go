@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 		sveltigo.RenderError(w, r, "mymessage", 401)
 	})))
 
-	server = httptest.NewServer(sveltigo.New(testdata.App, true)(mux))
+	server = httptest.NewServer(sveltigo.New(testdata.App)(mux))
 	defer server.Close()
 
 	browser = rod.New()

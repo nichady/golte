@@ -35,11 +35,8 @@ type Renderer struct {
 }
 
 // New constructs a renderer from the given FS.
-func New(serverDir *fs.FS, clientDir *fs.FS, ifSSR bool) *Renderer {
+func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	mode := "SSR"
-	if !ifSSR {
-		mode = "CSR"
-	}
 
 	r := &Renderer{
 		mode:      mode,
