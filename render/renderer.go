@@ -285,25 +285,31 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 
 func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
 	fileCache := make(map[string][]byte)
+	replacementCount := 0
 
 	for _, entry := range resources {
 		path := entry.Path
 		resource := entry.Resource
+
+		// 跳過外部資源
 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 			continue
 		}
 
+		// 提取檔名
 		filename := path[strings.LastIndex(path, "/")+1:]
 		content, cached := fileCache[filename]
 		if !cached {
 			var err error
 			content, err = findFileInFS(*r.clientDir, filename)
 			if err != nil {
+				fmt.Printf("Failed to find file: %s\n", filename)
 				continue
 			}
 			fileCache[filename] = content
 		}
 
+		// 構建替換內容
 		var replacement string
 		switch resource.TagName {
 		case "script":
@@ -315,10 +321,24 @@ func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry)
 		}
 
 		if replacement != "" {
-			tagPattern := regexp.MustCompile(regexp.QuoteMeta(resource.FullTag))
-			*html = tagPattern.ReplaceAllString(*html, replacement)
+			// 建立靈活的正則表達式匹配標籤
+			attrPattern := ""
+			for key, value := range resource.Attributes {
+				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
+			}
+
+			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
+			re := regexp.MustCompile(tagPattern)
+
+			if re.MatchString(*html) {
+				*html = re.ReplaceAllString(*html, replacement)
+				replacementCount++
+			} else {
+				fmt.Printf("No match found for tag: %s\n", tagPattern)
+			}
 		}
 	}
 
+	fmt.Printf("Total replacements made: %d\n", replacementCount)
 	return nil
 }
