@@ -15,8 +15,8 @@ import (
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	renderfile *renderfile
-	infofile   *infofile
+	renderfile renderfile
+	infofile   infofile
 
 	template *template.Template
 	vm       *goja.Runtime
@@ -54,8 +54,8 @@ func New(fsys *fs.FS) *Renderer {
 	return &Renderer{
 		template:   tmpl,
 		vm:         vm,
-		renderfile: &renderfile,
-		infofile:   &infofile,
+		renderfile: renderfile,
+		infofile:   infofile,
 	}
 }
 
