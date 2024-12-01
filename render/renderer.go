@@ -26,6 +26,7 @@ type result struct {
 type Renderer struct {
 	renderfile renderfile
 	infofile   infofile
+	clientFS   fs.FS
 
 	template  *template.Template
 	vmPool    sync.Pool
@@ -37,8 +38,14 @@ type Renderer struct {
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys *fs.FS) *Renderer {
+	serverDir, err := fs.Sub(*fsys, "server")
+	if err != nil {
+		panic(err)
+	}
+
 	r := &Renderer{
 		template: template.Must(template.New("").ParseFS(*fsys, "template.html")).Lookup("template.html"),
+		clientFS: serverDir,
 	}
 
 	r.vmPool.New = func() interface{} {
@@ -114,21 +121,29 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData, csr bool) err
 		head := origResult.Head
 		body := origResult.Body
 
-		// 移除 <head> 內的 <style> 標籤及內容，使用正則表達式
-		head = regexp.MustCompile(`<style[^>]*>.*?</style>`).ReplaceAllString(head, "")
+		// 檢查並處理 <link> 標籤
+		head = regexp.MustCompile(`<link[^>]*href="([^"]*)"[^>]*>`).ReplaceAllStringFunc(head, func(match string) string {
+			href := regexp.MustCompile(`href="([^"]*)"`).FindStringSubmatch(match)[1]
+			if strings.HasPrefix(href, "/"+r.Assets()) {
+				// 讀取靜態文件
+				if content, err := r.loadStaticFile(href); err == nil {
+					return "<style>" + content + "</style>"
+				}
+			}
+			return match
+		})
 
-		// 移除 <body> 內的 <script> 標籤及內容，使用正則表達式
-		body = regexp.MustCompile(`<script[^>]*>.*?</script>`).ReplaceAllString(body, "")
-
-		// 在 </head> 前注入 CSS
-		if r.inlineCSS != "" {
-			head = strings.Replace(head, "</head>", "<style>"+r.inlineCSS+"</style></head>", 1)
-		}
-
-		// 在 </body> 前注入 JS
-		if r.inlineJS != "" {
-			body = strings.Replace(body, "</body>", "<script>"+r.inlineJS+"</script></body>", 1)
-		}
+		// 檢查並處理 <script> 標籤
+		body = regexp.MustCompile(`<script[^>]*src="([^"]*)"[^>]*></script>`).ReplaceAllStringFunc(body, func(match string) string {
+			src := regexp.MustCompile(`src="([^"]*)"`).FindStringSubmatch(match)[1]
+			if strings.HasPrefix(src, "/"+r.Assets()) {
+				// 讀取靜態文件
+				if content, err := r.loadStaticFile(src); err == nil {
+					return "<script>" + content + "</script>"
+				}
+			}
+			return match
+		})
 
 		modifiedResult := &result{
 			Head:     head,
@@ -205,4 +220,18 @@ type infofile struct {
 func (r *Renderer) SetInlineAssets(js, css string) {
 	r.inlineJS = js
 	r.inlineCSS = css
+}
+
+// 新增輔助方法來讀取靜態文件
+func (r *Renderer) loadStaticFile(path string) (string, error) {
+	// 移除前綴路徑
+	path = strings.TrimPrefix(path, "/"+r.Assets()+"/")
+
+	// 讀取文件內容
+	content, err := fs.ReadFile(r.clientFS, path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(content), nil
 }
