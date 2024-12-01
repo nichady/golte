@@ -1,7 +1,6 @@
 package render
 
 import (
-	"bytes"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -74,6 +73,16 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	if err != nil {
 		return fmt.Errorf("render error: %w", err)
 	}
+
+	resources, err := extractResourcePaths(&result.Head)
+	if err != nil {
+		return fmt.Errorf("resource extraction error: %w", err)
+	}
+	err = r.replaceResourcePaths(&result.Head, resources)
+	if err != nil {
+		return fmt.Errorf("resource replacement error: %w", err)
+	}
+
 	r.mtx.Unlock()
 
 	if result.HasError {
@@ -83,26 +92,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data RenderData) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	var buf bytes.Buffer
-	err = r.template.Execute(&buf, result)
-	if err != nil {
-		return fmt.Errorf("template execution error: %w", err)
-	}
-	html := buf.String()
-	resources, err := extractResourcePaths(&html)
-	if err != nil {
-		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
-		return fmt.Errorf("resource extraction error: %w", err)
-	}
-
-	err = r.replaceResourcePaths(&html, resources)
-	if err != nil {
-		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
-		return fmt.Errorf("resource replacement error: %w", err)
-	}
-
-	w.Write([]byte(html))
-	return nil
+	return r.template.Execute(w, result)
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
@@ -132,17 +122,6 @@ type Entry struct {
 
 type SvelteContextData struct {
 	URL string
-}
-
-type csrResponse struct {
-	Entries []responseEntry
-	ErrPage responseEntry
-}
-
-type responseEntry struct {
-	File  string
-	Props map[string]any
-	CSS   []string
 }
 
 type infofile struct {
