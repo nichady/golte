@@ -32,14 +32,18 @@ type Renderer struct {
 // The FS should be the "server" subdirectory of the build output from "npx golte".
 // The second argument is the path where the JS, CSS, and other assets are expected to be served.
 func New(fsys *fs.FS) *Renderer {
-	// 列出 fsys 中的所有檔案
+	// 列出 fsys 中的所有檔案，包含完整路徑
+	fmt.Println("=== Listing all files in fsys ===")
 	fs.WalkDir(*fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Found in fsys: %s\n", path)
+		if !d.IsDir() {
+			fmt.Printf("File: %s\n", path)
+		}
 		return nil
 	})
+	fmt.Println("=== End of file listing ===")
 
 	r := &Renderer{
 		fsys:     fsys,
@@ -320,17 +324,24 @@ func renderNode(n *html.Node) string {
 
 // 修改輔助函數來搜尋檔案
 func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
+	fmt.Printf("Searching for file: %s\n", filename)
+	var foundPath string
 	var content []byte
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && d.Name() == filename {
-			content, err = fs.ReadFile(fsys, path)
-			if err != nil {
-				return err
+		if !d.IsDir() {
+			fmt.Printf("Checking file: %s\n", path)
+			if d.Name() == filename {
+				foundPath = path
+				var err error
+				content, err = fs.ReadFile(fsys, path)
+				if err != nil {
+					return err
+				}
+				return fs.SkipAll
 			}
-			return fs.SkipAll
 		}
 		return nil
 	})
@@ -338,8 +349,9 @@ func findFileInFS(fsys fs.FS, filename string) ([]byte, error) {
 		return nil, err
 	}
 	if content == nil {
-		return nil, fs.ErrNotExist
+		return nil, fmt.Errorf("file %s not found in any directory", filename)
 	}
+	fmt.Printf("Found file at: %s\n", foundPath)
 	return content, nil
 }
 
