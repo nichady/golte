@@ -318,7 +318,7 @@ func renderNode(n *html.Node) string {
 	return buf.String()
 }
 
-// 修改輔助函數來搜尋兩層路徑的檔案
+// 修��輔助函數來搜尋兩層路徑的檔案
 func findFileInFS(fsys fs.FS, twoLevelPath string) ([]byte, error) {
 	var content []byte
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -354,20 +354,31 @@ func findFileInFS(fsys fs.FS, twoLevelPath string) ([]byte, error) {
 func (r *Renderer) replaceResourcePaths(html *string, resources map[string]ResourceInfo) error {
 	replacementCount := 0
 	for path, resource := range resources {
+		// 跳過外部資源（CDN）
+		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			continue
+		}
+
+		// 只處理 golte_ 相關的資源
+		if !strings.Contains(path, "/golte_/") {
+			continue
+		}
+
 		var content []byte
 		var err error
 
 		fmt.Printf("Processing resource: %s\n", path)
 
-		// 先嘗試完整路徑
-		content, err = fs.ReadFile(*r.fsys, strings.TrimPrefix(path, "/"))
+		// 移除 /golte_/ 前綴，只保留後面的路徑
+		trimmedPath := strings.TrimPrefix(path, "/golte_/")
+
+		// 先嘗試直接讀取
+		content, err = fs.ReadFile(*r.fsys, trimmedPath)
 		if err != nil {
-			fmt.Printf("Full path not found: %v\n", err)
 			// 如果失敗，嘗試使用最後兩層路徑
-			parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+			parts := strings.Split(trimmedPath, "/")
 			if len(parts) >= 2 {
 				twoLevelPath := strings.Join(parts[len(parts)-2:], "/")
-				fmt.Printf("Trying two-level path: %s\n", twoLevelPath)
 				content, err = findFileInFS(*r.fsys, twoLevelPath)
 			}
 			if err != nil {
