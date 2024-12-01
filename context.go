@@ -14,9 +14,8 @@ type RenderContext struct {
 	Renderer   *render.Renderer
 	Components []render.Entry
 	ErrPage    string
-
-	csr    bool
-	scdata render.SvelteContextData
+	csr        bool
+	scdata     render.SvelteContextData
 }
 
 // GetRenderContext returns the render context from the request, or nil if it doesn't exist.
