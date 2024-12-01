@@ -25,7 +25,7 @@
 
 ## Installing
 
-> [!INFO]
+> [!NOTE]
 > You can use [golte-cli](https://github.com/TimLai666/golte-cli) to run and build your project.
 > For Sveltigo projects, just add `--sveltigo` to the `run`, `build` or `dev` command.
 
