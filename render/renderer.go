@@ -260,10 +260,10 @@ func extractResourcePaths(htmlContent *string) (map[string]ResourceInfo, error) 
 	traverse = func(n *html.Node) {
 		if n.Type == html.ElementNode {
 			// 除錯：印出所有元素
-			fmt.Printf("Found element: %s\n", n.Data)
-			for _, attr := range n.Attr {
-				fmt.Printf("  Attribute: %s=%s\n", attr.Key, attr.Val)
-			}
+			// fmt.Printf("Found element: %s\n", n.Data)
+			// for _, attr := range n.Attr {
+			// 	fmt.Printf("  Attribute: %s=%s\n", attr.Key, attr.Val)
+			// }
 
 			switch n.Data {
 			case "script":
@@ -349,28 +349,25 @@ func renderNode(n *html.Node) string {
 func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 	fmt.Printf("Searching for file: %s\n", filename)
 
-	// 根據檔案副檔名決定搜尋路徑
-	var searchPaths []string
+	// 直接嘗試在 assets 目錄中查找 CSS 檔案
 	if strings.HasSuffix(filename, ".css") {
-		searchPaths = []string{
-			"assets", // CSS 檔案在 assets 目錄
-		}
-	} else if strings.HasSuffix(filename, ".js") {
-		searchPaths = []string{
-			"entries", // JavaScript 入口檔案
-			"chunks",  // JavaScript 共用區塊
+		fullPath := "assets/" + filename
+		content, err := fs.ReadFile(clientDir, fullPath)
+		if err == nil {
+			fmt.Printf("Found CSS file at: %s\n", fullPath)
+			return content, nil
 		}
 	}
 
-	// 在每個可能的路徑中搜尋
-	for _, basePath := range searchPaths {
-		fullPath := basePath + "/" + filename
-		fmt.Printf("Trying path: %s\n", fullPath)
-
-		content, err := fs.ReadFile(clientDir, fullPath)
-		if err == nil {
-			fmt.Printf("Found file at: %s\n", fullPath)
-			return content, nil
+	// 對於 JS 檔案，嘗試在 entries 和 chunks 目錄中查找
+	if strings.HasSuffix(filename, ".js") {
+		paths := []string{"entries/" + filename, "chunks/" + filename}
+		for _, path := range paths {
+			content, err := fs.ReadFile(clientDir, path)
+			if err == nil {
+				fmt.Printf("Found JS file at: %s\n", path)
+				return content, nil
+			}
 		}
 	}
 
@@ -421,15 +418,21 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 
 		case "link":
 			if resource.Attributes["rel"] == "stylesheet" {
-				replacement = "<style>\n" + string(content) + "\n</style>"
-			} else {
-				continue
+				// 檢查是否為內部 CSS 資源
+				if strings.Contains(path, "/golte_/assets/") {
+					replacement = "<style data-source=\"" + filename + "\">\n" + string(content) + "\n</style>"
+					*html = strings.Replace(*html, resource.FullTag, replacement, 1)
+					replacementCount++
+				}
 			}
 		}
 
-		*html = strings.Replace(*html, resource.FullTag, replacement, 1)
-		replacementCount++
+		if resource.TagName == "script" {
+			*html = strings.Replace(*html, resource.FullTag, replacement, 1)
+			replacementCount++
+		}
 	}
+
 	fmt.Printf("Total replacements: %d\n", replacementCount)
 	return nil
 }
