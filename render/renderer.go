@@ -383,11 +383,17 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		var replacement string
 		switch resource.TagName {
 		case "script":
+			// 檢查是否是 module 類型的 script
+			isModule := resource.Attributes["type"] == "module"
 			replacement = "<script"
 			for key, value := range resource.Attributes {
 				if key != "src" {
 					replacement += fmt.Sprintf(" %s=\"%s\"", key, value)
 				}
+			}
+			if isModule {
+				// 對於 module 類型的 script，需要保持 type="module"
+				replacement += " type=\"module\""
 			}
 			replacement += ">\n" + string(content) + "\n</script>"
 
