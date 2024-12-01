@@ -1,23 +1,14 @@
 package render
 
-// import (
-// 	"bytes"
-// 	"encoding/json"
-// 	"fmt"
-// 	"io/fs"
-// 	"net/http"
-// 	"reflect"
-// 	"regexp"
-// 	"strings"
-// 	"sync"
-// 	"text/template"
+import (
+	"fmt"
+	"io/fs"
+	"regexp"
+	"strings"
+	"sync"
 
-// 	"github.com/dop251/goja"
-// 	"github.com/dop251/goja_nodejs/console"
-// 	"github.com/dop251/goja_nodejs/require"
-// 	"github.com/dop251/goja_nodejs/url"
-// 	"golang.org/x/net/html"
-// )
+	"golang.org/x/net/html"
+)
 
 // type Renderer struct {
 // 	serverDir  *fs.FS
@@ -150,35 +141,35 @@ package render
 // 	return err
 // }
 
-// func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
-// 	fileCache := sync.Map{}
-// 	for _, entry := range resources {
-// 		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
-// 			continue
-// 		}
-// 		filename := entry.Path[strings.LastIndex(entry.Path, "/")+1:]
-// 		content, ok := fileCache.Load(filename)
-// 		if !ok {
-// 			data, err := findFileInFS(*r.clientDir, filename)
-// 			if err != nil {
-// 				continue
-// 			}
-// 			content = data
-// 			fileCache.Store(filename, data)
-// 		}
-// 		if entry.Resource.TagName == "link" && entry.Resource.Attributes["rel"] == "stylesheet" {
-// 			replacement := fmt.Sprintf("<style>%s</style>", string(content.([]byte)))
-// 			attrPattern := ""
-// 			for key, value := range entry.Resource.Attributes {
-// 				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
-// 			}
-// 			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, entry.Resource.TagName, attrPattern)
-// 			re := regexp.MustCompile(tagPattern)
-// 			*html = re.ReplaceAllString(*html, replacement)
-// 		}
-// 	}
-// 	return nil
-// }
+func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
+	fileCache := sync.Map{}
+	for _, entry := range resources {
+		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
+			continue
+		}
+		filename := entry.Path[strings.LastIndex(entry.Path, "/")+1:]
+		content, ok := fileCache.Load(filename)
+		if !ok {
+			data, err := findFileInFS(*r.clientDir, filename)
+			if err != nil {
+				continue
+			}
+			content = data
+			fileCache.Store(filename, data)
+		}
+		if entry.Resource.TagName == "link" && entry.Resource.Attributes["rel"] == "stylesheet" {
+			replacement := fmt.Sprintf("<style>%s</style>", string(content.([]byte)))
+			attrPattern := ""
+			for key, value := range entry.Resource.Attributes {
+				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
+			}
+			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, entry.Resource.TagName, attrPattern)
+			re := regexp.MustCompile(tagPattern)
+			*html = re.ReplaceAllString(*html, replacement)
+		}
+	}
+	return nil
+}
 
 // type renderfile struct {
 // 	Manifest map[string]*struct {
@@ -207,82 +198,82 @@ package render
 // 	Assets string
 // }
 
-// type ResourceInfo struct {
-// 	TagName    string
-// 	FullTag    string
-// 	Attributes map[string]string
-// }
+type ResourceInfo struct {
+	TagName    string
+	FullTag    string
+	Attributes map[string]string
+}
 
-// type ResourceEntry struct {
-// 	Path     string
-// 	Resource ResourceInfo
-// }
+type ResourceEntry struct {
+	Path     string
+	Resource ResourceInfo
+}
 
-// func extractResourcePaths(htmlContent *string) ([]ResourceEntry, error) {
-// 	doc, err := html.Parse(strings.NewReader(*htmlContent))
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func extractResourcePaths(htmlContent *string) ([]ResourceEntry, error) {
+	doc, err := html.Parse(strings.NewReader(*htmlContent))
+	if err != nil {
+		return nil, err
+	}
 
-// 	var resources []ResourceEntry
-// 	var traverse func(*html.Node)
-// 	traverse = func(n *html.Node) {
-// 		if n.Type == html.ElementNode {
-// 			var resourcePath string
-// 			switch n.Data {
-// 			case "link":
-// 				isStylesheet := false
-// 				var href string
-// 				for _, attr := range n.Attr {
-// 					if attr.Key == "rel" && attr.Val == "stylesheet" {
-// 						isStylesheet = true
-// 					}
-// 					if attr.Key == "href" {
-// 						href = attr.Val
-// 					}
-// 				}
-// 				if isStylesheet {
-// 					resourcePath = href
-// 				}
-// 			}
+	var resources []ResourceEntry
+	var traverse func(*html.Node)
+	traverse = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			var resourcePath string
+			switch n.Data {
+			case "link":
+				isStylesheet := false
+				var href string
+				for _, attr := range n.Attr {
+					if attr.Key == "rel" && attr.Val == "stylesheet" {
+						isStylesheet = true
+					}
+					if attr.Key == "href" {
+						href = attr.Val
+					}
+				}
+				if isStylesheet {
+					resourcePath = href
+				}
+			}
 
-// 			if resourcePath != "" {
-// 				resources = append(resources, ResourceEntry{
-// 					Path: resourcePath,
-// 					Resource: ResourceInfo{
-// 						TagName:    n.Data,
-// 						Attributes: extractAttributes(n.Attr),
-// 					},
-// 				})
-// 			}
-// 		}
-// 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-// 			traverse(c)
-// 		}
-// 	}
+			if resourcePath != "" {
+				resources = append(resources, ResourceEntry{
+					Path: resourcePath,
+					Resource: ResourceInfo{
+						TagName:    n.Data,
+						Attributes: extractAttributes(n.Attr),
+					},
+				})
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			traverse(c)
+		}
+	}
 
-// 	traverse(doc)
-// 	return resources, nil
-// }
+	traverse(doc)
+	return resources, nil
+}
 
-// func extractAttributes(attrs []html.Attribute) map[string]string {
-// 	attributes := make(map[string]string)
-// 	for _, attr := range attrs {
-// 		attributes[attr.Key] = attr.Val
-// 	}
-// 	return attributes
-// }
+func extractAttributes(attrs []html.Attribute) map[string]string {
+	attributes := make(map[string]string)
+	for _, attr := range attrs {
+		attributes[attr.Key] = attr.Val
+	}
+	return attributes
+}
 
-// func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
-// 	paths := []string{"assets/" + filename, "entries/" + filename, "chunks/" + filename}
-// 	for _, path := range paths {
-// 		content, err := fs.ReadFile(clientDir, path)
-// 		if err == nil {
-// 			return content, nil
-// 		}
-// 	}
-// 	return nil, fmt.Errorf("file %s not found", filename)
-// }
+func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
+	paths := []string{"assets/" + filename, "entries/" + filename, "chunks/" + filename}
+	for _, path := range paths {
+		content, err := fs.ReadFile(clientDir, path)
+		if err == nil {
+			return content, nil
+		}
+	}
+	return nil, fmt.Errorf("file %s not found", filename)
+}
 
 // // ConvertStructsToJSON 遞迴將 map[string]any 和切片中的結構體轉換為 JSON 兼容的格式
 // func ConvertStructsToJSON(data map[string]any) (map[string]any, error) {

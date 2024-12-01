@@ -1,6 +1,8 @@
 package render
 
 import (
+	"bytes"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"sync"
@@ -16,10 +18,10 @@ import (
 type Renderer struct {
 	renderfile renderfile
 	infofile   infofile
-
-	template *template.Template
-	vm       *goja.Runtime
-	mtx      sync.Mutex
+	clientDir  *fs.FS
+	template   *template.Template
+	vm         *goja.Runtime
+	mtx        sync.Mutex
 }
 
 // New constructs a renderer from the given FS.
@@ -52,6 +54,7 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 
 	return &Renderer{
 		template:   tmpl,
+		clientDir:  ClientDir,
 		vm:         vm,
 		renderfile: renderfile,
 		infofile:   infofile,
@@ -81,8 +84,27 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	return r.template.Execute(w, result)
+	var buf bytes.Buffer
+	err = r.template.Execute(&buf, result)
+	if err != nil {
+		return err
+	}
 
+	html := buf.String()
+	resources, err := extractResourcePaths(&html)
+	if err != nil {
+		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
+		return fmt.Errorf("resource extraction error: %w", err)
+	}
+
+	err = r.replaceResourcePaths(&html, resources)
+	if err != nil {
+		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
+		return fmt.Errorf("resource replacement error: %w", err)
+	}
+
+	_, err = w.Write([]byte(html))
+	return err
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
