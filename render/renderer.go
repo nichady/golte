@@ -19,7 +19,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Renderer is a renderer for Svelte components. It is safe to use concurrently.
 type Renderer struct {
 	serverDir  *fs.FS
 	clientDir  *fs.FS
@@ -30,7 +29,12 @@ type Renderer struct {
 	mutex      sync.Mutex
 }
 
-// New constructs a renderer from the given FS.
+type RenderData struct {
+	Entries []Entry
+	ErrPage string
+	SCData  SvelteContextData
+}
+
 func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	r := &Renderer{
 		serverDir: serverDir,
@@ -41,11 +45,9 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	r.vmPool.New = func() interface{} {
 		vm := goja.New()
 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-			fmt.Printf("Loading file: %s\n", path)
 			return fs.ReadFile(*serverDir, path)
 		})
 		registry.Enable(vm)
-
 		console.Enable(vm)
 		url.Enable(vm)
 
@@ -53,8 +55,6 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
 			panic(fmt.Sprintf("Failed to load render.js: %v", err))
 		}
-
-		// 檢查 RenderJSON 是否初始化
 		if renderfile.RenderJSON == nil {
 			panic("RenderJSON method in render.js is not initialized")
 		}
@@ -63,11 +63,9 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
 			panic(fmt.Sprintf("Failed to load info.js: %v", err))
 		}
-
 		return vm
 	}
 
-	// 預先初始化 VM
 	vm := r.vmPool.Get().(*goja.Runtime)
 	defer r.vmPool.Put(vm)
 
@@ -75,11 +73,9 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
 		panic(fmt.Sprintf("Failed to initialize render.js: %v", err))
 	}
-
 	if renderfile.RenderJSON == nil {
 		panic("RenderJSON method in render.js is not initialized")
 	}
-
 	r.renderfile = renderfile
 
 	var infofile infofile
@@ -91,47 +87,32 @@ func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
 	return r
 }
 
-type RenderData struct {
-	Entries []Entry
-	ErrPage string
-	SCData  SvelteContextData
-}
-
-// Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	// 檢查 RenderJSON 是否初始化
 	if r.renderfile.RenderJSON == nil {
 		http.Error(w, "Internal Server Error: RenderJSON not initialized", http.StatusInternalServerError)
-		fmt.Println("RenderJSON method is not initialized")
 		return fmt.Errorf("renderfile.RenderJSON is nil")
 	}
 
-	// 將 RenderData 轉換為 JSON
 	dataJSON, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Data Serialization Failed", http.StatusInternalServerError)
-		fmt.Printf("Data serialization error: %v\n", err)
-		return err
+		return fmt.Errorf("data serialization error: %w", err)
 	}
 
-	// 處理 VM
 	vm, ok := r.vmPool.Get().(*goja.Runtime)
 	if !ok {
 		http.Error(w, "Internal Server Error: VM Pool Error", http.StatusInternalServerError)
-		fmt.Println("VM Pool returned invalid runtime")
 		return fmt.Errorf("vm pool returned invalid runtime")
 	}
 	defer r.vmPool.Put(vm)
 
-	// 使用 RenderJSON 方法渲染
 	var result *result
 	r.mutex.Lock()
 	result, err = r.renderfile.RenderJSON(string(dataJSON))
 	r.mutex.Unlock()
 	if err != nil {
 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
-		fmt.Printf("Render error: %v\n", err)
-		return err
+		return fmt.Errorf("render error: %w", err)
 	}
 
 	if result.HasError {
@@ -140,81 +121,56 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	// 渲染模板
 	var buf bytes.Buffer
 	if err := r.template.Execute(&buf, result); err != nil {
 		http.Error(w, "Internal Server Error: Template Execution Failed", http.StatusInternalServerError)
-		fmt.Printf("Template execution error: %v\n", err)
-		return err
+		return fmt.Errorf("template execution error: %w", err)
 	}
 
-	// 處理 HTML 資源
 	html := buf.String()
 	resources, err := extractResourcePaths(&html)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
-		fmt.Printf("Resource extraction error: %v\n", err)
-		return err
+		return fmt.Errorf("resource extraction error: %w", err)
 	}
 
 	err = r.replaceResourcePaths(&html, resources)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
-		fmt.Printf("Resource replacement error: %v\n", err)
-		return err
+		return fmt.Errorf("resource replacement error: %w", err)
 	}
 
 	_, err = w.Write([]byte(html))
 	return err
 }
 
-// Assets returns the "assets" field that was used in the Golte configuration file.
-func (r *Renderer) Assets() string {
-	return r.infofile.Assets
-}
-
 func (r *Renderer) replaceResourcePaths(html *string, resources []ResourceEntry) error {
 	fileCache := sync.Map{}
-
 	for _, entry := range resources {
-		path := entry.Path
-		resource := entry.Resource
-
-		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
 			continue
 		}
-
-		filename := path[strings.LastIndex(path, "/")+1:]
+		filename := entry.Path[strings.LastIndex(entry.Path, "/")+1:]
 		content, ok := fileCache.Load(filename)
 		if !ok {
 			data, err := findFileInFS(*r.clientDir, filename)
 			if err != nil {
-				fmt.Printf("Failed to find file: %s, error: %v\n", filename, err)
 				continue
 			}
 			content = data
 			fileCache.Store(filename, data)
 		}
-
-		if resource.TagName == "link" && resource.Attributes["rel"] == "stylesheet" {
+		if entry.Resource.TagName == "link" && entry.Resource.Attributes["rel"] == "stylesheet" {
 			replacement := fmt.Sprintf("<style>%s</style>", string(content.([]byte)))
 			attrPattern := ""
-			for key, value := range resource.Attributes {
+			for key, value := range entry.Resource.Attributes {
 				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
 			}
-
-			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, resource.TagName, attrPattern)
+			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, entry.Resource.TagName, attrPattern)
 			re := regexp.MustCompile(tagPattern)
-
-			if re.MatchString(*html) {
-				*html = re.ReplaceAllString(*html, replacement)
-			} else {
-				fmt.Printf("No match found for tag: %s\n", tagPattern)
-			}
+			*html = re.ReplaceAllString(*html, replacement)
 		}
 	}
-
 	return nil
 }
 
@@ -366,4 +322,12 @@ func ConvertStructsToJSON(data map[string]any) (map[string]any, error) {
 		}
 	}
 	return converted, nil
+}
+
+// Assets returns the "assets" field that was used in the Golte configuration file.
+func (r *Renderer) Assets() string {
+	if r.infofile.Assets == "" {
+		fmt.Println("Warning: Assets field in infofile is empty")
+	}
+	return r.infofile.Assets
 }
