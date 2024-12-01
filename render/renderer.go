@@ -457,10 +457,11 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		// 更改替換邏輯以更精確地匹配和替換完整的 HTML 標籤
 		if replacement != "" {
 			// 使用正則表達式匹配標籤名稱和屬性，並且忽略屬性的順序
-			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*>`, resource.TagName))
+			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*?>`, resource.TagName))
 			matches := tagPattern.FindAllString(*html, -1)
 			for _, match := range matches {
-				if strings.Contains(match, resource.Attributes["rel"]) {
+				// 修正判斷邏輯，確保匹配的是完整的標籤
+				if strings.Contains(match, resource.Attributes["rel"]) || strings.Contains(match, filename) {
 					*html = strings.Replace(*html, match, replacement, 1)
 					replacementCount++
 					fmt.Printf("Successfully replaced %s\n", resource.FullTag)
@@ -477,3 +478,4 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 // 注意事項：
 // 1. 使用 `regexp.QuoteMeta` 對資源標籤進行編碼，避免正則表達式中出現特殊字元導致替換失敗。
 // 2. 使用正則表達式來更精確地匹配完整的 HTML 標籤，並忽略屬性順序，以防止出現部分替換或錯誤替換的情況。
+// 3. 修正匹配邏輯以確保標籤內容包含必要的屬性或檔名，避免錯誤的替換。
