@@ -1,7 +1,6 @@
 package render
 
 import (
-	"bytes"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -12,10 +11,7 @@ import (
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/dop251/goja_nodejs/url"
-	jsoniter "github.com/json-iterator/go"
 )
-
-var JSON = jsoniter.ConfigFastest
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
@@ -72,30 +68,12 @@ type RenderData struct {
 
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	// 將資料轉換為 JSON
-	dataJSON, err := JSON.MarshalToString(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
-	}
+	r.mtx.Lock()
+	result, err := r.renderfile.Render(*data.Entries, data.SCData, data.ErrPage)
+	r.mtx.Unlock()
 
-	// 將 JSON 作為常數注入到 JavaScript 環境
-	jsCode := "const injectedData = " + dataJSON + ";"
-	_, err = r.vm.RunString(jsCode)
 	if err != nil {
-		return fmt.Errorf("failed to inject data into JS runtime: %w", err)
-	}
-
-	// 執行 JavaScript 函數，使用注入的常數
-	jsFunctionCall := `render(injectedData.entries, injectedData.scData, injectedData.errPage);`
-	value, err := r.vm.RunString(jsFunctionCall)
-	if err != nil {
-		return fmt.Errorf("JS function execution failed: %w", err)
-	}
-
-	// 解析執行結果
-	var result result
-	if err := r.vm.ExportTo(value, &result); err != nil {
-		return fmt.Errorf("failed to export result from JS runtime: %w", err)
+		return err
 	}
 
 	if result.HasError {
@@ -105,27 +83,19 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Vary", "Golte")
 
-	var buf bytes.Buffer
-	err = r.template.Execute(&buf, result)
-	if err != nil {
-		return fmt.Errorf("template execution failed: %w", err)
-	}
-
-	html := buf.String()
-	resources, err := extractResourcePaths(&html)
+	resources, err := extractResourcePaths(&result.Head)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
 		return fmt.Errorf("resource extraction error: %w", err)
 	}
 
-	err = r.replaceResourcePaths(&html, resources)
+	err = r.replaceResourcePaths(&result.Head, resources)
 	if err != nil {
 		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
 		return fmt.Errorf("resource replacement error: %w", err)
 	}
 
-	_, err = w.Write([]byte(html))
-	return err
+	return r.template.Execute(w, result)
 }
 
 // Assets returns the "assets" field that was used in the golte configuration file.
