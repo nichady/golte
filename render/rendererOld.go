@@ -12,12 +12,15 @@ import (
 	"github.com/dop251/goja_nodejs/console"
 	"github.com/dop251/goja_nodejs/require"
 	"github.com/dop251/goja_nodejs/url"
+	jsoniter "github.com/json-iterator/go"
 )
+
+var JSON = jsoniter.ConfigFastest
 
 // Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
 type Renderer struct {
-	renderfile renderfile
-	infofile   infofile
+	renderfile *renderfile
+	infofile   *infofile
 	clientDir  *fs.FS
 	template   *template.Template
 	vm         *goja.Runtime
@@ -31,7 +34,7 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 	tmpl := template.Must(template.New("").ParseFS(*ServerDir, "template.html")).Lookup("template.html")
 
 	vm := goja.New()
-	vm.SetFieldNameMapper(&fieldMapper{tag: "json"})
+	vm.SetFieldNameMapper(goja.TagFieldNameMapper("json", true))
 
 	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
 		return fs.ReadFile(*ServerDir, path)
@@ -56,25 +59,43 @@ func New(ServerDir *fs.FS, ClientDir *fs.FS) *Renderer {
 		template:   tmpl,
 		clientDir:  ClientDir,
 		vm:         vm,
-		renderfile: renderfile,
-		infofile:   infofile,
+		renderfile: &renderfile,
+		infofile:   &infofile,
 	}
 }
 
 type RenderData struct {
-	Entries []Entry
+	Entries *[]Entry
 	ErrPage string
 	SCData  SvelteContextData
 }
 
 // Render renders a slice of entries into the writer.
 func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-	r.mtx.Lock()
-	result, err := r.renderfile.Render(data.Entries, data.SCData, data.ErrPage)
-	r.mtx.Unlock()
-
+	// 將資料轉換為 JSON
+	dataJSON, err := JSON.MarshalToString(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal data: %w", err)
+	}
+
+	// 將 JSON 作為常數注入到 JavaScript 環境
+	jsCode := "const injectedData = " + dataJSON + ";"
+	_, err = r.vm.RunString(jsCode)
+	if err != nil {
+		return fmt.Errorf("failed to inject data into JS runtime: %w", err)
+	}
+
+	// 執行 JavaScript 函數，使用注入的常數
+	jsFunctionCall := `render(injectedData.entries, injectedData.scData, injectedData.errPage);`
+	value, err := r.vm.RunString(jsFunctionCall)
+	if err != nil {
+		return fmt.Errorf("JS function execution failed: %w", err)
+	}
+
+	// 解析執行結果
+	var result result
+	if err := r.vm.ExportTo(value, &result); err != nil {
+		return fmt.Errorf("failed to export result from JS runtime: %w", err)
 	}
 
 	if result.HasError {
@@ -87,7 +108,7 @@ func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
 	var buf bytes.Buffer
 	err = r.template.Execute(&buf, result)
 	if err != nil {
-		return err
+		return fmt.Errorf("template execution failed: %w", err)
 	}
 
 	html := buf.String()
