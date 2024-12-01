@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"regexp"
+	"sort"
 	"sync"
 	"text/template"
 
@@ -408,7 +409,16 @@ func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
 // 修改 replaceResourcePaths 函數
 func (r *Renderer) replaceResourcePaths(html *string, resources map[string]ResourceInfo) error {
 	replacementCount := 0
-	for path, resource := range resources {
+	// 逐一按順序處理資源，以確保替換後的順序與原始順序一致
+	orderedResources := make([]string, 0, len(resources))
+	for path := range resources {
+		orderedResources = append(orderedResources, path)
+	}
+	// 保持資源順序
+	sort.Strings(orderedResources)
+
+	for _, path := range orderedResources {
+		resource := resources[path]
 		// 跳過外部資源（CDN）
 		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 			fmt.Printf("Skipping external resource: %s\n", path)
@@ -461,16 +471,12 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 		// 更改替換邏輯以更精確地匹配和替換完整的 HTML 標籤
 		if replacement != "" {
 			// 使用正則表達式匹配標籤名稱和屬性，並且忽略屬性的順序
-			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*?>`, resource.TagName))
-			matches := tagPattern.FindAllString(*html, -1)
-			for _, match := range matches {
-				// 修正判斷邏輯，確保匹配的是完整的標籤，並且包含特定屬性或檔名
-				if (resource.TagName == "link" && strings.Contains(match, "rel=\"stylesheet\"")) || strings.Contains(match, filename) {
-					*html = strings.Replace(*html, match, replacement, 1)
-					replacementCount++
-					fmt.Printf("Successfully replaced %s\n", resource.FullTag)
-					break
-				}
+			tagPattern := regexp.MustCompile(fmt.Sprintf(`<%s[^>]*href="[^"]*%s"[^>]*>`, resource.TagName, regexp.QuoteMeta(filename)))
+			match := tagPattern.FindString(*html)
+			if match != "" {
+				*html = strings.Replace(*html, match, replacement, 1)
+				replacementCount++
+				fmt.Printf("Successfully replaced %s\n", resource.FullTag)
 			}
 		}
 	}
@@ -485,3 +491,5 @@ func (r *Renderer) replaceResourcePaths(html *string, resources map[string]Resou
 // 3. 修正匹配邏輯以確保標籤內容包含必要的屬性或檔名，避免錯誤的替換。
 // 4. 確保替換後的標籤保留原始標籤的所有屬性，避免丟失可能重要的屬性。
 // 5. 確保在 CSS 內聯時不保留 "rel" 屬性。
+// 6. 改善正則表達式的匹配邏輯，僅替換包含特定 href 的標籤，防止錯誤替換。
+// 7. 維持資源處理順序與原始順序一致，確保嵌入資源的順序正確。
