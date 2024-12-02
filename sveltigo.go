@@ -139,6 +139,6 @@ type respWriterWrapper struct {
 	http.ResponseWriter
 }
 
-func (w respWriterWrapper) WriteHeader(int) {
-	w.ResponseWriter.WriteHeader(http.StatusInternalServerError)
+func (w respWriterWrapper) WriteHeader(status int) {
+	w.ResponseWriter.WriteHeader(status)
 }
