@@ -3,328 +3,156 @@ package render
 import (
 	"fmt"
 	"io/fs"
-	"regexp"
-	"strings"
+	"net/http"
 	"sync"
+	"text/template"
 
-	"golang.org/x/net/html"
+	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/console"
+	"github.com/dop251/goja_nodejs/require"
+	"github.com/dop251/goja_nodejs/url"
 )
 
-// type Renderer struct {
-// 	serverDir  *fs.FS
-// 	clientDir  *fs.FS
-// 	renderfile renderfile
-// 	infofile   infofile
-// 	template   *template.Template
-// 	vmPool     sync.Pool
-// 	mutex      sync.Mutex
-// }
-
-// type RenderData struct {
-// 	Entries []Entry
-// 	ErrPage string
-// 	SCData  SvelteContextData
-// }
-
-// func New(serverDir *fs.FS, clientDir *fs.FS) *Renderer {
-// 	r := &Renderer{
-// 		serverDir: serverDir,
-// 		clientDir: clientDir,
-// 		template:  template.Must(template.New("").ParseFS(*serverDir, "template.html")).Lookup("template.html"),
-// 	}
-
-// 	r.vmPool.New = func() interface{} {
-// 		vm := goja.New()
-// 		registry := require.NewRegistryWithLoader(func(path string) ([]byte, error) {
-// 			fmt.Printf("Loading file: %s\n", path)
-// 			return fs.ReadFile(*serverDir, path)
-// 		})
-// 		registry.Enable(vm)
-
-// 		console.Enable(vm)
-// 		url.Enable(vm)
-
-// 		var renderfile renderfile
-// 		if err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile); err != nil {
-// 			fmt.Printf("Error loading render.js: %v\n", err)
-// 			return nil
-// 		}
-
-// 		if renderfile.RenderJSON == nil {
-// 			fmt.Println("Error: RenderJSON method is not initialized in render.js")
-// 			return nil
-// 		}
-
-// 		var infofile infofile
-// 		if err := vm.ExportTo(require.Require(vm, "./info.js"), &infofile); err != nil {
-// 			fmt.Printf("Error loading info.js: %v\n", err)
-// 			return nil
-// 		}
-
-// 		return vm
-// 	}
-
-// 	vm := r.vmPool.Get().(*goja.Runtime)
-// 	if vm == nil {
-// 		panic("Failed to initialize VM during Renderer creation")
-// 	}
-// 	defer r.vmPool.Put(vm)
-
-// 	if err := vm.ExportTo(require.Require(vm, "./render.js"), &r.renderfile); err != nil {
-// 		panic(fmt.Sprintf("Failed to initialize render.js: %v", err))
-// 	}
-// 	if r.renderfile.RenderJSON == nil {
-// 		panic("RenderJSON method in render.js is not initialized")
-// 	}
-
-// 	if err := vm.ExportTo(require.Require(vm, "./info.js"), &r.infofile); err != nil {
-// 		panic(fmt.Sprintf("Failed to initialize info.js: %v", err))
-// 	}
-
-// 	return r
-// }
-
-// func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
-// 	if r.renderfile.RenderJSON == nil {
-// 		http.Error(w, "Internal Server Error: RenderJSON not initialized", http.StatusInternalServerError)
-// 		return fmt.Errorf("renderfile.RenderJSON is nil")
-// 	}
-
-// 	dataJSON, err := json.Marshal(data)
-// 	if err != nil {
-// 		http.Error(w, "Internal Server Error: Data Serialization Failed", http.StatusInternalServerError)
-// 		return fmt.Errorf("data serialization error: %w", err)
-// 	}
-
-// 	vm, ok := r.vmPool.Get().(*goja.Runtime)
-// 	if !ok {
-// 		http.Error(w, "Internal Server Error: VM Pool Error", http.StatusInternalServerError)
-// 		return fmt.Errorf("vm pool returned invalid runtime")
-// 	}
-// 	defer r.vmPool.Put(vm)
-
-// 	var result *result
-// 	r.mutex.Lock()
-// 	result, err = r.renderfile.RenderJSON(string(dataJSON))
-// 	r.mutex.Unlock()
-// 	if err != nil {
-// 		http.Error(w, "Internal Server Error: Rendering Failed", http.StatusInternalServerError)
-// 		return fmt.Errorf("render error: %w", err)
-// 	}
-
-// 	if result.HasError {
-// 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-// 		return nil
-// 	}
-
-// 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-// 	var buf bytes.Buffer
-// 	if err := r.template.Execute(&buf, result); err != nil {
-// 		http.Error(w, "Internal Server Error: Template Execution Failed", http.StatusInternalServerError)
-// 		return fmt.Errorf("template execution error: %w", err)
-// 	}
-
-// 	html := buf.String()
-// 	resources, err := extractResourcePaths(&html)
-// 	if err != nil {
-// 		http.Error(w, "Internal Server Error: Resource Extraction Failed", http.StatusInternalServerError)
-// 		return fmt.Errorf("resource extraction error: %w", err)
-// 	}
-
-// 	err = r.replaceResourcePaths(&html, resources)
-// 	if err != nil {
-// 		http.Error(w, "Internal Server Error: Resource Replacement Failed", http.StatusInternalServerError)
-// 		return fmt.Errorf("resource replacement error: %w", err)
-// 	}
-
-// 	_, err = w.Write([]byte(html))
-// 	return err
-// }
-
-func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry) error {
-	fileCache := sync.Map{}
-	for _, entry := range *resources {
-		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
-			continue
-		}
-		filename := entry.Path[strings.LastIndex(entry.Path, "/")+1:]
-		content, ok := fileCache.Load(filename)
-		if !ok {
-			data, err := findFileInFS(*r.clientDir, filename)
-			if err != nil {
-				continue
-			}
-			content = data
-			fileCache.Store(filename, data)
-		}
-		if entry.Resource.TagName == "link" && entry.Resource.Attributes["rel"] == "stylesheet" {
-			replacement := fmt.Sprintf("<style>%s</style>", string(content.([]byte)))
-			attrPattern := ""
-			for key, value := range entry.Resource.Attributes {
-				attrPattern += fmt.Sprintf(`\s%s=["']%s["']`, key, regexp.QuoteMeta(value))
-			}
-			tagPattern := fmt.Sprintf(`<%s%s[^>]*>`, entry.Resource.TagName, attrPattern)
-			re := regexp.MustCompile(tagPattern)
-			*html = re.ReplaceAllString(*html, replacement)
-		}
-	}
-	return nil
+// Renderer is a renderer for svelte components. It is safe to use concurrently across threads.
+// ===
+// Renderer 是用於渲染 Svelte 組件的渲染器。它可以安全地在多個線程中並發使用。
+type Renderer struct {
+	renderfile *renderfile
+	infofile   infofile
+	clientDir  *fs.FS
+	template   *template.Template
+	vm         *goja.Runtime
+	mtx        sync.Mutex
 }
 
-// type renderfile struct {
-// 	Manifest map[string]*struct {
-// 		Client string
-// 		CSS    []string
-// 	}
-// 	RenderJSON func(string) (*result, error) // 修改為支援 JSON 字串
-// }
+// New constructs a renderer from the given FS.
+// The FS should be the "server" subdirectory of the build output from "npx golte".
+// The second argument is the path where the JS, CSS, and other assets are expected to be served.
+// ===
+// New 從給定的文件系統構建一個渲染器。
+// 文件系統應該是 "npx golte" 構建輸出的 "server" 子目錄。
+// 第二個參數是預期提供 JS、CSS 和其他資源的路徑。
+func New(serverFS *fs.FS, clientFS *fs.FS) *Renderer {
+	tmpl := template.Must(template.New("").ParseFS(*serverFS, "template.html")).Lookup("template.html")
 
-// type result struct {
-// 	Head     string
-// 	Body     string
-// 	HasError bool
-// }
+	vm := goja.New()
+	vm.SetFieldNameMapper(NewFieldMapper("json"))
 
-// type Entry struct {
-// 	Comp  string
-// 	Props map[string]any
-// }
+	require.NewRegistryWithLoader(func(path string) ([]byte, error) {
+		return fs.ReadFile(*serverFS, path)
+	}).Enable(vm)
 
-// type SvelteContextData struct {
-// 	URL string
-// }
+	console.Enable(vm)
+	url.Enable(vm)
 
-// type infofile struct {
-// 	Assets string
-// }
-
-type ResourceInfo struct {
-	TagName    string
-	FullTag    string
-	Attributes map[string]string
-}
-
-type ResourceEntry struct {
-	Path     string
-	Resource ResourceInfo
-}
-
-func extractResourcePaths(htmlContent *string) (*[]ResourceEntry, error) {
-	doc, err := html.Parse(strings.NewReader(*htmlContent))
+	var renderfile renderfile
+	err := vm.ExportTo(require.Require(vm, "./render.js"), &renderfile)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	var resources []ResourceEntry
-	var traverse func(*html.Node)
-	traverse = func(n *html.Node) {
-		if n.Type == html.ElementNode {
-			var resourcePath string
-			switch n.Data {
-			case "link":
-				isStylesheet := false
-				var href string
-				for _, attr := range n.Attr {
-					if attr.Key == "rel" && attr.Val == "stylesheet" {
-						isStylesheet = true
-					}
-					if attr.Key == "href" {
-						href = attr.Val
-					}
-				}
-				if isStylesheet {
-					resourcePath = href
-				}
-			}
-
-			if resourcePath != "" {
-				resources = append(resources, ResourceEntry{
-					Path: resourcePath,
-					Resource: ResourceInfo{
-						TagName:    n.Data,
-						Attributes: extractAttributes(n.Attr),
-					},
-				})
-			}
-		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			traverse(c)
-		}
+	var infofile infofile
+	err = vm.ExportTo(require.Require(vm, "./info.js"), &infofile)
+	if err != nil {
+		panic(err)
 	}
 
-	traverse(doc)
-	return &resources, nil
+	return &Renderer{
+		clientDir:  clientFS,
+		template:   tmpl,
+		vm:         vm,
+		renderfile: &renderfile,
+		infofile:   infofile,
+	}
 }
 
-func extractAttributes(attrs []html.Attribute) map[string]string {
-	attributes := make(map[string]string)
-	for _, attr := range attrs {
-		attributes[attr.Key] = attr.Val
-	}
-	return attributes
+// RenderData contains all necessary data for rendering components
+// ===
+// RenderData 包含渲染組件所需的所有數據
+type RenderData struct {
+	Entries *[]Entry          // Components to render / 要渲染的組件
+	ErrPage string            // Error page component / 錯誤頁面組件
+	SCData  SvelteContextData // Svelte context data / Svelte 上下文數據
 }
 
-func findFileInFS(clientDir fs.FS, filename string) ([]byte, error) {
-	paths := []string{"assets/" + filename, "entries/" + filename, "chunks/" + filename}
-	for _, path := range paths {
-		content, err := fs.ReadFile(clientDir, path)
-		if err == nil {
-			return content, nil
-		}
+// Render renders a slice of entries into the writer.
+// It handles resource path extraction and replacement, and sets appropriate headers.
+// ===
+// Render 將一系列條目渲染到寫入器中。
+// 它處理資源路徑的提取和替換，並設置適當的標頭。
+func (r *Renderer) Render(w http.ResponseWriter, data *RenderData) error {
+	r.mtx.Lock()
+	result, err := r.renderfile.Render(*data.Entries, data.SCData, data.ErrPage)
+	if err != nil {
+		return fmt.Errorf("render error: %w", err)
 	}
-	return nil, fmt.Errorf("file %s not found", filename)
+
+	resources, err := extractResourcePaths(&result.Head)
+	if err != nil {
+		return fmt.Errorf("resource extraction error: %w", err)
+	}
+	err = r.replaceResourcePaths(&result.Head, resources)
+	if err != nil {
+		return fmt.Errorf("resource replacement error: %w", err)
+	}
+
+	r.mtx.Unlock()
+
+	if result.HasError {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Vary", "Golte")
+
+	return r.template.Execute(w, result)
 }
 
-// // ConvertStructsToJSON 遞迴將 map[string]any 和切片中的結構體轉換為 JSON 兼容的格式
-// func ConvertStructsToJSON(data map[string]any) (map[string]any, error) {
-// 	converted := make(map[string]any)
-// 	for key, value := range data {
-// 		switch reflect.TypeOf(value).Kind() {
-// 		case reflect.Map:
-// 			// 遞迴處理 map
-// 			if v, ok := value.(map[string]any); ok {
-// 				innerMap, err := ConvertStructsToJSON(v)
-// 				if err != nil {
-// 					return nil, err
-// 				}
-// 				converted[key] = innerMap
-// 			} else {
-// 				converted[key] = value
-// 			}
-// 		case reflect.Slice:
-// 			// 處理切片
-// 			v := reflect.ValueOf(value)
-// 			convertedSlice := make([]any, v.Len())
-// 			for i := 0; i < v.Len(); i++ {
-// 				item := v.Index(i).Interface()
-// 				if reflect.TypeOf(item).Kind() == reflect.Struct {
-// 					// 將結構體轉換為 JSON 兼容格式
-// 					jsonData, err := json.Marshal(item)
-// 					if err != nil {
-// 						return nil, err
-// 					}
-// 					var jsonMap map[string]any
-// 					if err := json.Unmarshal(jsonData, &jsonMap); err != nil {
-// 						return nil, err
-// 					}
-// 					convertedSlice[i] = jsonMap
-// 				} else {
-// 					convertedSlice[i] = item
-// 				}
-// 			}
-// 			converted[key] = convertedSlice
-// 		default:
-// 			// 其他類型直接保留
-// 			converted[key] = value
-// 		}
-// 	}
-// 	return converted, nil
-// }
+// Assets returns the "assets" field that was used in the golte configuration file.
+// ===
+// Assets 返回在 golte 配置文件中使用的 "assets" 字段。
+func (r *Renderer) Assets() string {
+	return r.infofile.Assets
+}
 
-// // Assets returns the "assets" field that was used in the Golte configuration file.
-// func (r *Renderer) Assets() string {
-// 	if r.infofile.Assets == "" {
-// 		fmt.Println("Warning: Assets field in infofile is empty")
-// 	}
-// 	return r.infofile.Assets
-// }
+// result represents the output of component rendering
+// ===
+// result 表示組件渲染的輸出結果
+type result struct {
+	Head     string // HTML head content / HTML 頭部內容
+	Body     string // Rendered component HTML / 渲染後的組件 HTML
+	HasError bool   // Whether an error occurred / 是否發生錯誤
+}
+
+// renderfile contains component manifest and render function
+// ===
+// renderfile 包含組件清單和渲染函數
+type renderfile struct {
+	Manifest map[string]struct {
+		Client string   // Client-side JS path / 客戶端 JS 路徑
+		CSS    []string // Component CSS paths / 組件 CSS 路徑
+	}
+	Render func([]Entry, SvelteContextData, string) (result, error)
+}
+
+// Entry represents a component to be rendered, along with its props.
+// ===
+// Entry 表示要渲染的組件及其屬性。
+type Entry struct {
+	Comp  string         // Component name / 組件名稱
+	Props map[string]any // Component props / 組件屬性
+}
+
+// SvelteContextData contains context data for Svelte components
+// ===
+// SvelteContextData 包含 Svelte 組件的上下文數據
+type SvelteContextData struct {
+	URL string // Current URL / 當前 URL
+}
+
+// infofile contains build configuration information
+// ===
+// infofile 包含構建配置信息
+type infofile struct {
+	Assets string // Asset serving path / 資源服務路徑
+}
