@@ -13,7 +13,6 @@ import (
 var (
 	hrefRegex       = regexp.MustCompile(`href=["']([^"']+)["']`)
 	attrRegex       = regexp.MustCompile(`(\w+)=["']([^"']+)["']`)
-	linkPattern     = regexp.MustCompile(`<link[^>]+href=["']([^"']+)["'][^>]*>`)
 	styleBufferPool = sync.Pool{
 		New: func() interface{} {
 			return &bytes.Buffer{}
@@ -50,10 +49,8 @@ type ResourceEntry struct {
 }
 
 func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry) error {
-	linkPatrn := linkPattern
 	styles := make([]StyleEntry, 0, len(*resources))
 	fileCache := sync.Map{}
-
 	styleBuffer := styleBufferPool.Get().(*bytes.Buffer)
 	defer styleBufferPool.Put(styleBuffer)
 
@@ -63,7 +60,11 @@ func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry
 			continue
 		}
 
-		if matches := linkPatrn.FindStringSubmatch(*html); len(matches) > 0 {
+		// 構建特定於此 entry 的匹配模式
+		pattern := fmt.Sprintf(`<link[^>]+href=["']%s["'][^>]*>`, regexp.QuoteMeta(entry.Path))
+		linkRe := regexp.MustCompile(pattern)
+
+		if matches := linkRe.FindString(*html); matches != "" {
 			content, _ := r.getContent(&fileCache, entry.Path)
 			if content != nil {
 				styleBuffer.Reset()
@@ -72,7 +73,7 @@ func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry
 				styleBuffer.WriteString("</style>")
 
 				styles = append(styles, StyleEntry{
-					pattern: matches[0],
+					pattern: matches,
 					style:   styleBuffer.String(),
 				})
 			}
