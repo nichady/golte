@@ -4,3 +4,6 @@
 /_examples/node_modules/
 /_examples/*/build/
 /_examples/*/*.db
+/testdata/node_modules
+testdata/package-lock.json
+testdata/package.json
