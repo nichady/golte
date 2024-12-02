@@ -13,7 +13,6 @@ import (
 var (
 	hrefRegex      = regexp.MustCompile(`href=["']([^"']+)["']`)
 	attrRegex      = regexp.MustCompile(`(\w+)=["']([^"']+)["']`)
-	linkRegex      = regexp.MustCompile(`<link\s[^>]*rel=["']stylesheet["'][^>]*>`)
 	scannerBufPool = sync.Pool{
 		New: func() interface{} {
 			b := make([]byte, 64*1024)
@@ -45,36 +44,68 @@ type ResourceEntry struct {
 }
 
 func (r *Renderer) replaceResourcePaths(html *string, resources *[]ResourceEntry) error {
-	linkRx := linkRegex
+	// 使用切片保持順序
+	type StyleEntry struct {
+		pattern string // 原始的 link 標籤
+		style   string // 轉換後的 style 標籤
+	}
+	styles := make([]StyleEntry, 0, len(*resources))
+
 	fileCache := sync.Map{}
 	var buf bytes.Buffer
 
+	// 1. 收集所有樣式，保持順序
 	for _, entry := range *resources {
 		if strings.HasPrefix(entry.Path, "http://") || strings.HasPrefix(entry.Path, "https://") {
 			continue
 		}
 
-		filename := entry.Path[strings.LastIndex(entry.Path, "/")+1:]
-		content, ok := fileCache.Load(filename)
-		if !ok {
-			data, err := findFileInFS(*r.clientDir, filename)
-			if err != nil {
-				continue
-			}
-			content = data
-			go fileCache.Store(filename, data)
+		if entry.Resource.TagName != "link" || entry.Resource.Attributes["rel"] != "stylesheet" {
+			continue
 		}
 
-		if entry.Resource.TagName == "link" && entry.Resource.Attributes["rel"] == "stylesheet" {
+		// 構建這個 link 標籤的匹配模式
+		pattern := fmt.Sprintf(`<link[^>]+href=["']%s["'][^>]*>`, regexp.QuoteMeta(entry.Path))
+
+		content, _ := r.getContent(&fileCache, entry.Path)
+		if content != nil {
 			buf.Reset()
 			buf.WriteString("<style>")
-			buf.Write(content.([]byte))
+			buf.Write(content)
 			buf.WriteString("</style>")
 
-			*html = linkRx.ReplaceAllString(*html, buf.String())
+			styles = append(styles, StyleEntry{
+				pattern: pattern,
+				style:   buf.String(),
+			})
 		}
 	}
+
+	// 2. 按順序替換
+	result := *html
+	for _, style := range styles {
+		re := regexp.MustCompile(style.pattern)
+		result = re.ReplaceAllString(result, style.style)
+	}
+	*html = result
+
 	return nil
+}
+
+// 抽取獲取內容的邏輯
+func (r *Renderer) getContent(cache *sync.Map, path string) ([]byte, error) {
+	filename := path[strings.LastIndex(path, "/")+1:]
+	if content, ok := cache.Load(filename); ok {
+		return content.([]byte), nil
+	}
+
+	data, err := findFileInFS(*r.clientDir, filename)
+	if err != nil {
+		return nil, err
+	}
+
+	go cache.Store(filename, data)
+	return data, nil
 }
 
 func extractResourcePaths(htmlContent *string) (*[]ResourceEntry, error) {
