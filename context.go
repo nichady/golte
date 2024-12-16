@@ -1,9 +1,9 @@
-package golte
+package sveltigo
 
 import (
 	"net/http"
 
-	"github.com/nichady/golte/render"
+	"github.com/HazelnutParadise/sveltigo/render"
 )
 
 type contextKey struct{}
@@ -14,9 +14,7 @@ type RenderContext struct {
 	Renderer   *render.Renderer
 	Components []render.Entry
 	ErrPage    string
-
-	csr    bool
-	scdata render.SvelteContextData
+	scdata     render.SvelteContextData
 }
 
 // GetRenderContext returns the render context from the request, or nil if it doesn't exist.
@@ -42,9 +40,14 @@ func MustGetRenderContext(r *http.Request) *RenderContext {
 // Render renders all the components in the render context to the writer,
 // with each subsequent component being a child of the previous.
 func (r *RenderContext) Render(w http.ResponseWriter) {
-	data := render.RenderData{Entries: r.Components, ErrPage: r.ErrPage, SCData: r.scdata}
-	err := r.Renderer.Render(w, data, r.csr)
-	if err != nil {
+	data := &render.RenderData{
+		Entries: &r.Components,
+		ErrPage: r.ErrPage,
+		SCData:  r.scdata,
+	}
+
+	if err := r.Renderer.Render(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }

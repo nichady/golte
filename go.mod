@@ -1,4 +1,4 @@
-module github.com/nichady/golte
+module github.com/HazelnutParadise/sveltigo
 
 go 1.21.0
 
@@ -9,9 +9,15 @@ require (
 )
 
 require (
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+)
+
+require (
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/google/pprof v0.0.0-20231023181126-ff6d637d2a7b // indirect
+	github.com/json-iterator/go v1.1.12
 	github.com/ysmood/fetchup v0.2.4 // indirect
 	github.com/ysmood/goob v0.4.0 // indirect
 	github.com/ysmood/got v0.38.3 // indirect

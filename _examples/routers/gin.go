@@ -3,10 +3,8 @@ package main
 import (
 	"net/http"
 
-	"examples/routers/build"
-
+	"github.com/HazelnutParadise/sveltigo"
 	"github.com/gin-gonic/gin"
-	"github.com/nichady/golte"
 )
 
 func ginRouter() http.Handler {
@@ -17,7 +15,7 @@ func ginRouter() http.Handler {
 				ctx.Request = r
 				ctx.Next()
 			})).ServeHTTP(ctx.Writer, ctx.Request)
-			if golte.GetRenderContext(ctx.Request) == nil {
+			if sveltigo.GetRenderContext(ctx.Request) == nil {
 				ctx.Abort()
 			}
 		}
@@ -25,15 +23,15 @@ func ginRouter() http.Handler {
 
 	// since gin doesm't use stdlib-compatible signatures, we have to wrap them
 	page := func(c string) gin.HandlerFunc {
-		return gin.WrapH(golte.Page(c))
+		return gin.WrapH(sveltigo.Page(c))
 	}
 	layout := func(c string) gin.HandlerFunc {
-		return wrapMiddleware(golte.Layout(c))
+		return wrapMiddleware(sveltigo.Layout(c))
 	}
 
 	r := gin.Default()
 
-	r.Use(wrapMiddleware(build.Golte))
+	r.Use(wrapMiddleware(build.sveltigo))
 	r.Use(layout("layout/main"))
 
 	r.GET("/", page("page/home"))
@@ -41,10 +39,10 @@ func ginRouter() http.Handler {
 	r.GET("/contact", page("page/contact"))
 
 	g := r.Group("/user")
-	g.Use(wrapMiddleware(golte.Layout("layout/secondary")))
+	g.Use(wrapMiddleware(sveltigo.Layout("layout/secondary")))
 	g.GET("/login", page("page/login"))
 	g.GET("/profile", func(ctx *gin.Context) {
-		golte.RenderPage(ctx.Writer, ctx.Request, "page/profile", map[string]any{
+		sveltigo.RenderPage(ctx.Writer, ctx.Request, "page/profile", map[string]any{
 			"username":   "john123",
 			"realname":   "John Smith",
 			"occupation": "Software Engineer",
@@ -56,11 +54,11 @@ func ginRouter() http.Handler {
 	})
 
 	g.GET("/:placeholder", func(ctx *gin.Context) {
-		golte.RenderError(ctx.Writer, ctx.Request, "Page not found", http.StatusNotFound)
+		sveltigo.RenderError(ctx.Writer, ctx.Request, "Page not found", http.StatusNotFound)
 	})
 
 	r.GET("/:placeholder", func(ctx *gin.Context) {
-		golte.RenderError(ctx.Writer, ctx.Request, "Page not found", http.StatusNotFound)
+		sveltigo.RenderError(ctx.Writer, ctx.Request, "Page not found", http.StatusNotFound)
 	})
 
 	return r

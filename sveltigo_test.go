@@ -1,4 +1,4 @@
-package golte_test
+package sveltigo_test
 
 import (
 	"fmt"
@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/HazelnutParadise/sveltigo"
+	"github.com/HazelnutParadise/sveltigo/testdata"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/nichady/golte"
-	"github.com/nichady/golte/testdata"
 )
 
 var (
@@ -22,21 +22,21 @@ var (
 func TestMain(m *testing.M) {
 	mux := http.NewServeMux()
 
-	e0 := golte.Error("error/0")
-	e1 := golte.Error("error/1")
-	l0 := golte.Layout("layout/0")
+	e0 := sveltigo.Error("error/0")
+	e1 := sveltigo.Error("error/1")
+	l0 := sveltigo.Layout("layout/0")
 	l1 := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			golte.AddLayout(r, "layout/1", map[string]any{"varNum": 69, "varStr": "mystring", "varBool": true})
+			sveltigo.AddLayout(r, "layout/1", map[string]any{"varNum": 69, "varStr": "mystring", "varBool": true})
 			next.ServeHTTP(w, r)
 		})
 	}
-	l2 := golte.Layout("layout/2")
-	l3 := golte.Layout("layout/3")
-	p0 := golte.Page("page/0")
-	p1 := golte.Page("page/1")
-	p2 := golte.Page("page/2")
-	p3 := golte.Page("page/3")
+	l2 := sveltigo.Layout("layout/2")
+	l3 := sveltigo.Layout("layout/3")
+	p0 := sveltigo.Page("page/0")
+	p1 := sveltigo.Page("page/1")
+	p2 := sveltigo.Page("page/2")
+	p3 := sveltigo.Page("page/3")
 
 	mux.Handle("/route0", e0(l0(l1(l2(p0)))))
 	mux.Handle("/route1", e0(l0(l1(l2(p1)))))
@@ -44,10 +44,10 @@ func TestMain(m *testing.M) {
 	mux.Handle("/route3", e0(l0(l1(l2(p3)))))
 	mux.Handle("/error0", e0(l0(l3(p1))))
 	mux.Handle("/error1", e1(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		golte.RenderError(w, r, "mymessage", 401)
+		sveltigo.RenderError(w, r, "mymessage", 401)
 	})))
 
-	server = httptest.NewServer(golte.New(testdata.App)(mux))
+	server = httptest.NewServer(sveltigo.New(testdata.App)(mux))
 	defer server.Close()
 
 	browser = rod.New()
