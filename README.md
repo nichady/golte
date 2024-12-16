@@ -61,7 +61,7 @@ web/
         about.svelte
         contact.svelte
         login.svelte
-		profile.svelte
+        profile.svelte
     layout/
         main.svelte
     app.html
@@ -198,3 +198,7 @@ I discovered [Bud](https://github.com/livebud/bud), but it forces you to structu
 There is also [Inertia.js](https://github.com/inertiajs/inertia), but it requires NodeJS for SSR, and I don't like how layouts need to specified inside the page components.
 
 So, I created Golte to solve these problems.
+
+## Related Projects
+
+https://github.com/TimLai666/golte-cli - command-line tool for building and running Golte projects
